@@ -49,7 +49,7 @@ TypePtr TypeChecker::checkFuncDef(AST::FuncDefPtr node) {
   // 在这个函数中，你需要判断函数是否已经被定义过
   // 如果函数已经被定义过，你需要报错
   // 否则，你需要将函数插入符号表，并在符号表中创建一个新的作用域
-  // 再将函数参数也插入符号表›
+  // 再将函数参数也插入符号表
   // 最后检查函数体的语句块
 
 #warning Not implemented: TypeChecker::checkFuncDef
