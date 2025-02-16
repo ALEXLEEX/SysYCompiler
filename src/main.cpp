@@ -5,6 +5,7 @@
 #include <string>
 
 #include "ast/tree.hpp"
+#include "semantic/type_checker.hpp"
 
 extern int yydebug;  // 0: disable debug mode, 1: enable debug mode
 extern int yyparse();
@@ -72,6 +73,10 @@ int main(int argc, char **argv) {
     if (root) {
       root->print_tree();
       std::cout << "Parse succeeded" << std::endl;
+
+      auto type_checker = TypeChecker();
+      type_checker.check(root);
+      std::cout << "Semantic check passed" << std::endl;
     }
 
     return 0;

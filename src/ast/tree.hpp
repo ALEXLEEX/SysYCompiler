@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "common.hpp"
+#include "semantic/type.hpp"
 
 extern int yylineno;
 
@@ -20,6 +21,7 @@ class Node {
  public:
   //存储节点所在的(结束)行号
   int lineno;
+  TypePtr type;
 
   virtual std::vector<NodePtr> get_children() { return std::vector<NodePtr>(); }
   void print_tree(std::string prefix = "", std::string info_prefix = "");
