@@ -1,16 +1,12 @@
 #include "symbol_table.hpp"
 
-Symbol::Symbol(std::string name, TypePtr type) : name(name), type(type) {
-  // 实现构造函数
-  // 对于非函数类型的符号，需要为其生成唯一名称
-
-#warning Not implemented: Symbol::Symbol
-}
-
 std::string SymbolTable::add_symbol(SymbolPtr symbol) {
   // 实现符号表的插入操作
-  // 对于非函数类型的符号，最好返回为该标识符生成的唯一名称
+  // 并设置 symbol 的 unique_name 属性
+  // 对于局部变量和数组，最好为该标识符重新生成一个唯一名称
+  // 对于全局变量和函数，直接使用原名称即可
   // 这样在后续 IR Translation 阶段就不需要考虑 scope 的问题
+  // 最后返回该标识符的唯一名称
 
 #warning Not implemented: SymbolTable::add_symbol
 }

@@ -18,7 +18,7 @@ class Symbol {
   std::string unique_name;
   /// @brief The type of the symbol
   TypePtr type;
-  Symbol(std::string name, TypePtr type);
+  Symbol(std::string name, TypePtr type) : name(name), type(type) {}
   static SymbolPtr create(std::string name, TypePtr type) {
     return std::make_shared<Symbol>(name, type);
   }
