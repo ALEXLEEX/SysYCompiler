@@ -1,6 +1,38 @@
-// Input: None
-// Output: None
-int main()
+// Input: 5 8
+// Output: 24
+
+int global_array[3] = {1, 2, 3};  // global VarDecl
+
+int Add(int a, int b)
+{  
+    // FuncDef
+    return a + b;
+}
+
+// FuncFParams
+void Print(int res)
 {
-    
+    write(res);
+}
+
+int main() {
+    int aa, bb;
+    aa = read();
+    bb = read();
+
+    int sum = Add(aa, bb);  // FuncRParams
+    int i = 0;
+
+    while (i < 3) {
+        sum = sum + global_array[i];
+        i = i + 1;
+    }
+
+    if (sum % 2 == 0) {
+        Print(sum);
+    } else {
+        Print(sum + aa);
+    }
+
+    return 0;
 }
