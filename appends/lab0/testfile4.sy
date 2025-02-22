@@ -1,14 +1,66 @@
-// Input: 5
-// Output: 5
+// Input: -1 2 -3 4 -5 1 2 3 4 5 6 7 8 9
+// Output: 1 0 1 0 1 2 2 2 6
 
-int a[4][2] = {};
-int b[4][2] = {1, 2, 3, 4, 5, 6, 7, 8};
-int c[4][2] = {{1, 2}, {3, 4}, 5, 6, 7, 8};
-int d[4][2] = {1, 2, {3}, {5}, 7 , 8};
 
+
+void test(int p1[], int p2[][3]) {
+    int i = 0, j = 0;
+    
+    while (i < 5) {
+        if (!p1[i] > 0 || i % 2 == 0) {
+            write(1);
+        } else {
+            write(0);
+        }
+        i = i + 1;
+    }
+
+    while (j < 3) {
+        if (p2[j][j] % 2 != 0 && p2[j][j] > 0) {
+            write(2);
+        } else {
+            write(0);
+        }
+        j = j + 1;
+    }
+}
+
+int sum(int a[]) {
+    int i = 0, sum = 0;
+    
+    // not supoort reconize array size may cause null ptr
+
+    while (i < 3) {
+        sum = sum + a[i];
+        i = i + 1;
+    }
+
+    return sum;
+}
 
 int main() {
-    a[0][0] = read();
-    write(a[0][0]);
+    int arr1[5], arr2[3][3], i, j;
+    
+    i = 0;
+    while (i < 5) { 
+        arr1[i] = read();
+        i = i + 1;
+    }
+
+    j = 0;
+    while (j < 3) {
+        int k = 0;
+        while (k < 3) {
+            arr2[j][k] = read();
+            k = k + 1;
+        }
+        j = j + 1;
+    }
+
+    test(arr1, arr2);
+
+    // pass 2-dimension array as 1-dimension array
+    write(sum(arr2[0]));
+
     return 0;
 }

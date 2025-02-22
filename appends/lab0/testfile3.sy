@@ -20,6 +20,7 @@ void compare(int x, int y) {
         write(6);  // x != y
     }
 
+    // no return value
     return;
 }
 
