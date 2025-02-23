@@ -9,6 +9,12 @@ void yyerror(const char *s);
 extern int yylex(void);
 using namespace AST;
 extern NodePtr root;
+
+template <typename T>
+inline std::shared_ptr<T> shared_cast(Node *ptr) {
+  return std::shared_ptr<T>(static_cast<T *>(ptr));
+}
+
 %}
 
 // yylval 的定义, 我们把它定义成了一个联合体 (union)
@@ -53,32 +59,34 @@ extern NodePtr root;
 AstRoot : CompUnit { root = NodePtr($1); }
     ;
 
-// 同样的，由于 union 中的类型不能是 std::shared_ptr
-// 而 CompUnit 初始化时需要传入一个 FuncDefPtr (std::shared_ptr<FuncDef>)
-// 所以我们需要通过 static_cast 来转换类型
-// 在用 std::shared_ptr 包装一下
-// 才能传入 CompUnit 的构造函数
-CompUnit : FuncDef { $$ = new CompUnit(FuncDefPtr(static_cast<FuncDef*>($1))); }
-    | CompUnit FuncDef { static_cast<CompUnit*>($1)->add_unit(FuncDefPtr(static_cast<FuncDef*>($2))); }
+CompUnit : FuncDef { $$ = new CompUnit(shared_cast<FuncDef>($1)); }
+    | CompUnit FuncDef { static_cast<CompUnit*>($1)->add_unit(shared_cast<FuncDef>($2)); }
     ;
 
 Decl : VarDecl { $$ = $1; }
     ;
 
-// 同样的，由于 union 中的类型不能是 std::shared_ptr
+// 由于 union 中的类型不能是 std::shared_ptr
 // 只是普通的指针，所以我们需要通过 static_cast 来转换类型
 // 才能访问到对应的成员和函数
 VarDecl : "int" VarDefs ";" { static_cast<VarDecl *>($2)->btype = BasicType::Int; $$ = $2; }
     ;
 
-VarDefs : VarDef { $$ = new VarDecl(VarDefPtr(static_cast<VarDef*>($1))); }
-    | VarDefs "," VarDef { static_cast<VarDecl*>($1)->add_def(VarDefPtr(static_cast<VarDef*>($3))); }
+VarDefs : VarDef { $$ = new VarDecl(shared_cast<VarDef>($1)); }
+    | VarDefs "," VarDef { static_cast<VarDecl*>($1)->add_def(shared_cast<VarDef>($3)); }
     ;
 
 VarDef : IDENT { $$ = new VarDef($1); }
     ;
 
-FuncDef : "int" IDENT "(" ")" Block { $$ = new FuncDef(BasicType::Int, $2, BlockPtr(static_cast<Block*>($5))); }
+// 同样的，由于 union 中的类型不能是 std::shared_ptr
+// 而 FuncDef 初始化时需要传入一个 BlockPtr (std::shared_ptr<Block>)
+// 所以我们需要通过 static_cast 来转换类型
+// 再用 std::shared_ptr 包装一下
+// 才能传入 FuncDef 的构造函数
+// 这里 shared_cast 是一个自定义的模板函数，用于将普通指针转换成 std::shared_ptr
+// 相当于 std::shared_ptr<T>(static_cast<T*>(ptr))
+FuncDef : "int" IDENT "(" ")" Block { $$ = new FuncDef(BasicType::Int, $2, shared_cast<Block>($5)); }
     ;
 
 Block : "{" "}" { $$ = new Block(); }
@@ -93,7 +101,7 @@ BlockItem : Stmt { $$ = $1; }
     | Decl { $$ = $1; }
     ;
 
-Stmt : LVal "=" Exp ";" { $$ = new AssignStmt(LValPtr(static_cast<LVal*>($1)), NodePtr($3)); }
+Stmt : LVal "=" Exp ";" { $$ = new AssignStmt(shared_cast<LVal>($1), NodePtr($3)); }
     | Exp ";" { $$ = $1; }
     | "return" Exp ";" { $$ = new ReturnStmt(NodePtr($2)); }
     ;

@@ -36,7 +36,7 @@ identifier {letter}({letter}|{digit})*
 {linecomment}   { }
 {comment}       { }
 {blank}         { }
-.               { printf("ERROR(%s)\n", yytext); }
+.               { throw std::runtime_error("Unknown token '" + std::string(yytext) + "' at line " + std::to_string(yylineno)); }
 
 %%
 
