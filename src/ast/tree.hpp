@@ -12,10 +12,13 @@ extern int yylineno;
 
 namespace AST {
 
+// AST 抽象语法树
+// Node 是抽象语法树所有节点的基类
 class Node;
 using NodePtr = std::shared_ptr<Node>;
 class Node {
  public:
+  //存储节点所在的行号
   int lineno;
 
   virtual std::vector<NodePtr> get_children() { return std::vector<NodePtr>(); }
@@ -42,7 +45,8 @@ using LValPtr = std::shared_ptr<LVal>;
 class LVal : public Node {
  public:
   std::string ident;
-#warning Have not support array yet
+// #warning Have not support array yet
+  
   LVal(std::string ident) : ident(ident) {}
   std::string to_string() override { return "LVal <ident: " + ident + ">"; }
 };
