@@ -60,7 +60,7 @@ AstRoot : CompUnit { root = NodePtr($1); }
     ;
 
 CompUnit : FuncDef { $$ = new CompUnit(shared_cast<FuncDef>($1)); }
-    | CompUnit FuncDef { static_cast<CompUnit*>($1)->add_unit(shared_cast<FuncDef>($2)); }
+    | CompUnit FuncDef { static_cast<CompUnit*>($1)->add_unit(shared_cast<FuncDef>($2)); $$ = $1; }
     ;
 
 Decl : VarDecl { $$ = $1; }
@@ -73,7 +73,7 @@ VarDecl : "int" VarDefs ";" { static_cast<VarDecl *>($2)->btype = BasicType::Int
     ;
 
 VarDefs : VarDef { $$ = new VarDecl(shared_cast<VarDef>($1)); }
-    | VarDefs "," VarDef { static_cast<VarDecl*>($1)->add_def(shared_cast<VarDef>($3)); }
+    | VarDefs "," VarDef { static_cast<VarDecl*>($1)->add_def(shared_cast<VarDef>($3)); $$ = $1; }
     ;
 
 VarDef : IDENT { $$ = new VarDef($1); }
@@ -94,7 +94,7 @@ Block : "{" "}" { $$ = new Block(); }
     ;
 
 BlockItems : BlockItem { $$ = new Block(NodePtr($1)); }
-    | BlockItems BlockItem { static_cast<Block*>($1)->add_stmt(NodePtr($2)); }
+    | BlockItems BlockItem { static_cast<Block*>($1)->add_stmt(NodePtr($2)); $$ = $1; }
     ;
 
 BlockItem : Stmt { $$ = $1; }
@@ -130,7 +130,7 @@ UnaryOp : "+" { $$ = BinaryOp::Add; }
     ;
 
 FuncRParams : Exp { $$ = new FuncCall(NodePtr($1)); }
-    | FuncRParams "," Exp { static_cast<FuncCall*>($1)->add_arg(NodePtr($3)); }
+    | FuncRParams "," Exp { static_cast<FuncCall*>($1)->add_arg(NodePtr($3)); $$ = $1; }
     ;
 
 MulExp : UnaryExp { $$ = $1; }
