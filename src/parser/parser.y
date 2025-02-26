@@ -32,7 +32,7 @@ inline std::shared_ptr<T> shared_cast(Node *ptr) {
     BinaryOp op;
     AST::Node *node;
 }
-
+下面是别名
 %start AstRoot
 %token ADD "+"
 %token SUB "-"
