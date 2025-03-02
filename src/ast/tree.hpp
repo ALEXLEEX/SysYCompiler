@@ -18,11 +18,11 @@ class Node;
 using NodePtr = std::shared_ptr<Node>;
 class Node {
  public:
-  //存储节点所在的行号
+  //存储节点所在的(结束)行号
   int lineno;
 
   virtual std::vector<NodePtr> get_children() { return std::vector<NodePtr>(); }
-  void print_tree(std::string prefix = "", std::string info_prefix = "");
+  void print_tree(std::string prefix = "", std::string info_prefix = "");// 这个不用覆写了
   virtual std::string to_string() = 0;
 
   Node() : lineno(yylineno) {}
@@ -46,9 +46,24 @@ class LVal : public Node {
  public:
   std::string ident;
 // #warning Have not support array yet
-  
-  LVal(std::string ident) : ident(ident) {}
-  std::string to_string() override { return "LVal <ident: " + ident + ">"; }
+  std::vector<NodePtr> indices; // 存储数组索引表达式
+
+  LVal(std::string ident, std::vector<NodePtr> indices = {}) : ident(ident), indices(indices) {}
+  // LVal(std::string ident) : ident(std::move(ident)) {}
+  std::string to_string() override {
+    std::string result = "LVar <ident: " + ident + ">";
+    if (!indices.empty()) {
+      result += " : ";
+      for (size_t i = 0; i < indices.size(); i++) {
+        result += "[";
+        // if (i > 0) result += ", "; // 这里问题比较大，因为[]之间可以是exp 我还没想好要怎么表示
+        result += indices[i]->to_string(); // 调用索引表达式的 `to_string()`
+        result += "]";
+      }
+    }
+
+    return result;
+  }
 };
 
 class UnaryExp;
