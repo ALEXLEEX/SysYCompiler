@@ -4,7 +4,7 @@
 #include <string>
 #include <iostream>
 #include "ast/tree.hpp"
-#define YYDEBUG 1
+
 // Bison 在遇到语法错误时会调用 yyerror
 void yyerror(const char *s);
 
@@ -77,6 +77,7 @@ inline std::shared_ptr<T> shared_cast(Node *ptr) {
 // 给非终结符指定类型
 %type <node> AstRoot
 %type <node> CompUnit
+%type <node> CompUnitItem
 %type <node> Decl
 %type <node> VarDecl
 %type <node> VarDefs
@@ -116,25 +117,22 @@ AstRoot
   ;
 
 /** 
- * CompUnit -> CompUnit Decl
- *           | CompUnit FuncDef
- *           |
+ * CompUnit -> CompUnitItem
+ *           | CompUnit CompUnitItem
  */
 CompUnit
-  : CompUnit Decl      { static_cast<CompUnit*>($1)->add_unit(shared_cast<VarDecl>($2)); $$ = $1; }
-  | CompUnit FuncDef   { static_cast<CompUnit*>($1)->add_unit(shared_cast<FuncDef>($2)); $$ = $1; }
-  | Decl               { $$ = new CompUnit(shared_cast<VarDecl>($1)); }
-  | FuncDef            { $$ = new CompUnit(shared_cast<FuncDef>($1)); }
+  : CompUnitItem
+  | CompUnit CompUnitItem
   ;
 
 /** 
  * CompUnitItem -> Decl | FuncDef
  * 这样把“声明”和“函数定义”分开处理
  */
-/**CompUnitItem
-  | FuncDef     { $$ = $1; }
-  : Decl        { $$ = $1; }
-  ;*/
+CompUnitItem
+  : Decl       { $$ = $1; }
+  | FuncDef    { $$ = $1; }
+  ;
 
 /** 
  * 函数定义或声明 

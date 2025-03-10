@@ -7,7 +7,6 @@
 #include <vector>
 
 #include "common.hpp"
-
 extern int yylineno;
 
 namespace AST {
@@ -22,13 +21,16 @@ class Node {
   int lineno;
 
   virtual std::vector<NodePtr> get_children() { return std::vector<NodePtr>(); }
-  void print_tree(std::string prefix = "", std::string info_prefix = "");// 这个不用覆写了
+  void print_tree(std::string prefix = "", std::string info_prefix = "");
   virtual std::string to_string() = 0;
 
   Node() : lineno(yylineno) {}
   virtual ~Node() = default;
 };
 
+//-------------------------
+// 以下是已有示例节点
+//-------------------------
 class IntConst;
 using IntConstPtr = std::shared_ptr<IntConst>;
 class IntConst : public Node {
@@ -45,32 +47,16 @@ using LValPtr = std::shared_ptr<LVal>;
 class LVal : public Node {
  public:
   std::string ident;
-// #warning Have not support array yet
-  std::vector<NodePtr> indices; // 存储数组索引表达式
-
-  LVal(std::string ident, std::vector<NodePtr> indices = {}) : ident(ident), indices(indices) {}
-  // LVal(std::string ident) : ident(std::move(ident)) {}
-  std::string to_string() override {
-    std::string result = "LVar <ident: " + ident + ">";
-    if (!indices.empty()) {
-      result += " : ";
-      for (size_t i = 0; i < indices.size(); i++) {
-        result += "[";
-        // if (i > 0) result += ", "; // 这里问题比较大，因为[]之间可以是exp 我还没想好要怎么表示
-        result += indices[i]->to_string(); // 调用索引表达式的 `to_string()`
-        result += "]";
-      }
-    }
-
-    return result;
-  }
+#warning Have not support array yet
+  LVal(std::string ident) : ident(ident) {}
+  std::string to_string() override { return "LVal <ident: " + ident + ">"; }
 };
 
 class UnaryExp;
 using UnaryExpPtr = std::shared_ptr<UnaryExp>;
 class UnaryExp : public Node {
  public:
-  BinaryOp op;
+  BinaryOp op;  // 注意：这里用 BinaryOp 来表示一元运算可能会有歧义
   NodePtr exp;
   UnaryExp(BinaryOp op, NodePtr exp) : op(op), exp(exp) {}
   std::string to_string() override {
@@ -100,7 +86,7 @@ class FuncCall : public Node {
  public:
   std::string name;
   std::vector<NodePtr> args;
-  FuncCall(char const *name) : name(name) {}
+  FuncCall(const char *name) : name(name) {}
   FuncCall(NodePtr exp) { add_arg(exp); }
   void add_arg(NodePtr exp) { args.push_back(exp); }
   std::string to_string() override { return "FuncCall <name: " + name + ">"; }
@@ -148,7 +134,7 @@ using VarDefPtr = std::shared_ptr<VarDef>;
 class VarDef : public Node {
  public:
   std::string ident;
-  VarDef(char const *ident) : ident(ident) {}
+  VarDef(const char *ident) : ident(ident) {}
   std::string to_string() override { return "VarDef <ident: " + ident + ">"; }
 };
 
@@ -164,6 +150,7 @@ class VarDecl : public Node {
     return "VarDecl <btype: " + std::string(type_to_string(btype)) + ">";
   }
   std::vector<NodePtr> get_children() override {
+    // 将 VarDefPtr 转为 NodePtr 以便打印
     return std::vector<NodePtr>(defs.begin(), defs.end());
   }
 };
@@ -176,7 +163,7 @@ class FuncDef : public Node {
   std::string name;
 #warning Have not support params yet
   BlockPtr block;
-  FuncDef(BasicType return_btype, char const *name, BlockPtr block)
+  FuncDef(BasicType return_btype, const char *name, BlockPtr block)
       : return_btype(return_btype), name(name), block(block) {}
   std::string to_string() override {
     return "FuncDef <return_btype: " +
@@ -196,7 +183,70 @@ class CompUnit : public Node {
   std::vector<NodePtr> get_children() override { return units; }
 };
 
-#warning More AST nodes are needed
+//---------------------------------
+// 下面是新增的节点
+//---------------------------------
+
+// 1. 表达式语句节点（单纯的一条“Exp;”语句）
+// 有时也称为 "ExpStmt"
+class ExpStmt;
+using ExpStmtPtr = std::shared_ptr<ExpStmt>;
+class ExpStmt : public Node {
+ public:
+  NodePtr exp;  // 这里可以是任意表达式
+  ExpStmt(NodePtr exp) : exp(exp) {}
+  std::string to_string() override { return "ExpStmt"; }
+  std::vector<NodePtr> get_children() override { return {exp}; }
+};
+
+// 2. 函数形式参数节点（Param），可以用于表示形参信息
+class Param;
+using ParamPtr = std::shared_ptr<Param>;
+class Param : public Node {
+ public:
+  BasicType btype;
+  std::string ident;
+  // 这里暂不实现数组形参的维数，视需求可自行扩展
+  Param(BasicType btype, const char *ident) : btype(btype), ident(ident) {}
+  std::string to_string() override {
+    return "Param <btype: " + std::string(type_to_string(btype)) +
+           ", ident: " + ident + ">";
+  }
+};
+
+// 3. IfStmt 节点，用于表示 if / if-else
+class IfStmt;
+using IfStmtPtr = std::shared_ptr<IfStmt>;
+class IfStmt : public Node {
+ public:
+  NodePtr condition;     // 条件表达式
+  NodePtr then_stmt;     // if 分支
+  NodePtr else_stmt;     // else 分支（可选）
+  IfStmt(NodePtr cond, NodePtr then_stmt, NodePtr else_stmt = nullptr)
+      : condition(cond), then_stmt(then_stmt), else_stmt(else_stmt) {}
+  std::string to_string() override { return "IfStmt"; }
+  std::vector<NodePtr> get_children() override {
+    if (else_stmt) {
+      return {condition, then_stmt, else_stmt};
+    } else {
+      return {condition, then_stmt};
+    }
+  }
+};
+
+// 4. WhileStmt 节点，用于表示 while
+class WhileStmt;
+using WhileStmtPtr = std::shared_ptr<WhileStmt>;
+class WhileStmt : public Node {
+ public:
+  NodePtr condition;  // 循环条件
+  NodePtr body;       // 循环体
+  WhileStmt(NodePtr cond, NodePtr body) : condition(cond), body(body) {}
+  std::string to_string() override { return "WhileStmt"; }
+  std::vector<NodePtr> get_children() override {
+    return {condition, body};
+  }
+};
 
 }  // namespace AST
 

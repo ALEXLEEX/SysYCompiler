@@ -61,7 +61,7 @@ int main(int argc, char **argv) {
     }
 
     // 输出 flex/bison 的调试信息
-    // yydebug = 1;
+    yydebug = 1;
 
     if (int parse_status = yyparse()) {
       throw std::runtime_error("Parse failed with status " +
