@@ -16,4 +16,4 @@ void AST::Node::print_tree(std::string prefix, std::string info_prefix) {
     }
   }
 }
-// 没有孩子自动返回了
+// 没有孩子就会自动返回了

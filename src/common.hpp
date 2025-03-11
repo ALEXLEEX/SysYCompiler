@@ -1,11 +1,11 @@
 #ifndef COMMON_HPP
 #define COMMON_HPP
-// 存放整个项目中通用的定义和工具，方便在不同模块间共享和复用代码
+// 存放整个项目中通用的定义和工具 方便在不同模块间共享和复用代码
 #include <iostream>
 #include <memory>
 #include <string>
 
-// 基本类型枚举
+// 基本类型枚举 仅支持 Int 和 Void 两种类型
 enum class BasicType { Unknown, Int, Void };
 inline constexpr const char *type_to_string(BasicType type) {
   switch (type) {
@@ -20,19 +20,19 @@ inline constexpr const char *type_to_string(BasicType type) {
 }
 
 /**
- * 把二元/一元等运算都统一在这里的话，需要在后续解析/AST处理时加以区分。
- * 也可以再弄一个 enum class UnaryOp { ... } 做一元运算，取决于实现。
+ * 把二元/一元等运算都统一在这里 需要在后续解析/AST处理时加以区分 
+ * 也就是说构建 Unary Op 的时候传的还是一个 BinaryOp 枚举 
  */
 enum class BinaryOp {
   // 算术
-  Add,  // +
-  Sub,  // -
+  Add,  // + 二元/一元
+  Sub,  // - 二元/一元
   Mul,  // *
   Div,  // /
   Mod,  // %
-  // 逻辑一元运算
-  Not,  // ! (一元)
-  // 逻辑二元运算
+  // 逻辑一元
+  Not,  // ! 一元
+  // 逻辑二元
   LAnd, // &&
   LOr,  // ||
   // 比较
@@ -42,9 +42,6 @@ enum class BinaryOp {
   LE,   // <=
   GT,   // >
   GE,   // >=
-
-  // 如果你只打算把一元正负号等价放在这里，也可以，但最好注意区分
-  // e.g. "一元正号" vs "二元加法"
 };
 
 inline constexpr const char *op_to_string(BinaryOp op) {
