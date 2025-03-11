@@ -29,7 +29,6 @@ class Node {
   virtual ~Node() = default;
 };
 
-
 class IntConst;
 using IntConstPtr = std::shared_ptr<IntConst>;
 class IntConst : public Node {
@@ -46,9 +45,24 @@ using LValPtr = std::shared_ptr<LVal>;
 class LVal : public Node {
  public:
   std::string ident;
-#warning Have not support array yet
+// #warning Have not support array yet
+  // 这里存每个下标的表达式 如不是数组 则此项为空
+  std::vector<NodePtr> dims;
   LVal(std::string ident) : ident(ident) {}
-  std::string to_string() override { return "LVal <ident: " + ident + ">"; }
+  // 如果是数组的话 parser.y里面使用下面的构造函数和添加维度函数
+  LVal(std::string ident, NodePtr dim) : ident(ident) { dims.push_back(dim); }
+  void add_dim(NodePtr dim) { dims.push_back(dim); }
+  std::string to_string() override { 
+    // 可选地在打印中提示下标维度数
+    // 比如 "LVal <ident: arr> (dims=2)"
+    return "LVal <ident: " + ident + (dims.empty() 
+      ? "" 
+      : (", dims=" + std::to_string(dims.size()))) + ">";
+  }
+  std::vector<NodePtr> get_children() override { 
+    // 返回所有下标表达式 这样应该是打印出每个dim的表达式
+    return dims;
+  }
 };
 
 class UnaryExp;
@@ -128,16 +142,104 @@ class ReturnStmt : public Node {
   }
 };
 
+class InitVal;
+using InitValPtr = std::shared_ptr<InitVal>;
+class InitVal : public Node {
+ public:
+  // 我们用一个 enum 来表示本节点哪种模式
+  enum class Kind {
+    EXP,     // initVal 是一个表达式
+    BRACE    // initVal 是 { initVal, initVal, ... } 复合
+  } kind;
+
+  // 如果 kind==EXP, 我们存放 expr
+  NodePtr expr; // 这里可以是任意表达式节点
+  
+  // 如果 kind==BRACE, 我们存放多个子InitVal
+  std::vector<InitValPtr> subInitVals;
+
+  // 构造1 表达式
+  InitVal(NodePtr e) : kind(Kind::EXP), expr(e) {}
+
+  // 构造2 花括号复合
+  InitVal(const std::vector<InitValPtr> &subs)
+    : kind(Kind::BRACE), expr(nullptr), subInitVals(subs) {}
+
+  // 如果在解析时，需要反复添加 subInitVal, 就加一个 add_sub(InitValPtr)
+  void add_sub(const InitValPtr &val) {
+    subInitVals.push_back(val);
+  }
+
+  std::string to_string() override {
+    if (kind == Kind::EXP) {
+      return "InitVal(Expr)";
+    } else {
+      // BRACE
+      return "InitVal(Brace) size=" + std::to_string(subInitVals.size());
+    }
+  }
+
+  std::vector<NodePtr> get_children() override {
+    // 如果是表达式，就返回它
+    // 如果是复合，返回每个 subInitVal
+    if (kind == Kind::EXP) {
+      if (expr) return {expr};
+      else return {};
+    } else {
+      // BRACE
+      // subInitVals 是 InitValPtr, 但 they are NodePtr
+      // we can cast them or store them as NodePtr
+      std::vector<NodePtr> children;
+      for (auto &val : subInitVals) {
+        children.push_back(val);
+      }
+      return children;
+    }
+  }
+};
+
 class VarDef;
 using VarDefPtr = std::shared_ptr<VarDef>;
 class VarDef : public Node {
  public:
   std::string ident;
-  VarDef(const char *ident) : ident(ident) {}
-  // modify
-  int initVal;
-  VarDef(const char *ident, int initVal) : ident(ident), initVal(initVal) {}
-  std::string to_string() override { return "VarDef <ident: " + ident + ">"; }
+  // 支持数组和符合初值
+  std::vector<int> dims;
+  // 新增初值节点 如果没有 = 则为空
+  InitValPtr initVal;
+
+  // 构造函数1 仅有标识符(标量 无数组 无初值)
+  VarDef(const char *ident) : ident(ident), initVal(nullptr) {}
+
+  // 构造函数2 传入整维度信息 初始化器
+  VarDef(const char *ident, int dim, InitValPtr initVal) : ident(ident), initVal(initVal) {
+    dims.push_back(dim);
+  }
+  void add_dim(int dim) { dims.push_back(dim); }
+  std::string to_string() override {
+    // 在打印里可以显示 ident dims大小 以及是否有初值
+    std::string info = "VarDef <ident: " + ident + ">";
+    if (!dims.empty()) {
+      info += " [dims=";
+      for (size_t i = 0; i < dims.size(); i++) {
+        if (i > 0) info += ",";
+        info += std::to_string(dims[i]);
+      }
+      info += "]";
+    }
+    if (initVal) {
+      info += " with InitVal";
+    }
+    return info;
+  }
+  std::vector<NodePtr> get_children() override {
+    // 若想在打印或遍历AST时看 initVal 结构，把它返回
+    // dims 只是存 int 不是 NodePtr
+    if (initVal) {
+      return {initVal};
+    }
+    return {};
+  }
 };
 
 class VarDecl;
@@ -163,15 +265,36 @@ class FuncDef : public Node {
  public:
   BasicType return_btype;
   std::string name;
-#warning Have not support params yet
+// #warning Have not support params yet
+  // 存放形参列表
+  std::vector<ParamPtr> params;
+
   BlockPtr block;
   FuncDef(BasicType return_btype, const char *name, BlockPtr block)
       : return_btype(return_btype), name(name), block(block) {}
-  std::string to_string() override {
-    return "FuncDef <return_btype: " +
-           std::string(type_to_string(return_btype)) + ", name: " + name + ">";
+  // 创建该节点的时候就是应该直接存入第一个 Param 节点
+  FuncDef(BasicType return_btype, const char *name, BlockPtr block, ParamPtr param)
+      : return_btype(return_btype), name(name), block(block) {
+    params.push_back(param);
   }
-  std::vector<NodePtr> get_children() override { return {block}; }
+  void add_param(ParamPtr param) { params.push_back(param); }
+  std::string to_string() override {
+    // 例如: FuncDef <return_btype: int, name: foo, param_count=2>
+    return "FuncDef <return_btype: " +
+           std::string(type_to_string(return_btype)) +
+           ", name: " + name +
+           ", param_count=" + std::to_string(params.size()) + ">";
+  }
+  std::vector<NodePtr> get_children() override {
+    // 合并 params + block
+    std::vector<NodePtr> children;
+    children.reserve(params.size() + 1);
+    for (auto &p : params) {
+      children.push_back(p);
+    }
+    children.push_back(block);
+    return children;
+  }
 };
 
 class CompUnit;
@@ -189,8 +312,7 @@ class CompUnit : public Node {
 // 下面是新增的节点
 //---------------------------------
 
-// 1. 表达式语句节点（单纯的一条“Exp;”语句）
-// 有时也称为 "ExpStmt"
+// 实现 ; 或者 Exp ;
 class ExpStmt;
 using ExpStmtPtr = std::shared_ptr<ExpStmt>;
 class ExpStmt : public Node {
@@ -200,38 +322,68 @@ class ExpStmt : public Node {
   ExpStmt(NodePtr exp) : exp(exp) {}
   std::string to_string() override { return "ExpStmt"; }
   std::vector<NodePtr> get_children() override { 
-    if (exp)
-    {
-      return {exp};
-    }
-    
-    return std::vector<NodePtr>(); 
+    return exp ? std::vector<NodePtr>{exp} : std::vector<NodePtr>();
   }
 };
 
-// 2. 函数形式参数节点（Param），可以用于表示形参信息
+// 实现括号 ( Exp ) 其他的如果是 LVal 或者 Number 就直接打印了 不再规约到这里
+class PrimaryExp;
+using PrimaryExpPtr = std::shared_ptr<PrimaryExp>;
+class PrimaryExp : public Node {
+ public:
+  NodePtr exp;
+  PrimaryExp(NodePtr exp) : exp(exp) {}
+  std::string to_string() override { return "PrimaryExp"; }
+  std::vector<NodePtr> get_children() override { return {exp}; }
+};
+
+// 实现函数形参 Param 表示形参信息
 class Param;
 using ParamPtr = std::shared_ptr<Param>;
 class Param : public Node {
  public:
   BasicType btype;
   std::string ident;
-  // 这里暂不实现数组形参的维数，视需求可自行扩展
+  // 扩展支持数组维度
+  std::vector<int> dims;
   Param(BasicType btype, const char *ident) : btype(btype), ident(ident) {}
+  Param(BasicType btype, const char *ident, int dim=-1) : btype(btype), ident(ident) {
+    // 第一维度肯定是 [ ] 空 所以我们直接 push 一个-1
+    dims.push_back(dim);
+  }
+  // 这里我们直接不创建 IntConst 节点了 直接传入 INTCONST 的属性值 int_val
+  void add_dim(int dim) { dims.push_back(dim); }
   std::string to_string() override {
-    return "Param <btype: " + std::string(type_to_string(btype)) +
-           ", ident: " + ident + ">";
+    // 可以在输出中显示每个维度
+    // 例如: Param <btype: int, ident: arr, dims=[null,10,20]>
+    std::string info = "Param <btype: ";
+    info += type_to_string(btype);
+    info += ", ident: ";
+    info += ident;
+
+    if (!dims.empty()) {
+      info += ", dims=[";
+      for (size_t i = 0; i < dims.size(); i++) {
+        if (i > 0) info += ",";
+        // 用-1表示空尺寸
+        if (dims[i] == -1) info += "null";
+        else info += std::to_string(dims[i]);
+      }
+      info += "]";
+    }
+    info += ">";
+    return info;
   }
 };
 
-// 3. IfStmt 节点，用于表示 if / if-else
+// 实现 IfStmt 表示 if / if-else
 class IfStmt;
 using IfStmtPtr = std::shared_ptr<IfStmt>;
 class IfStmt : public Node {
  public:
   NodePtr condition;     // 条件表达式
   NodePtr then_stmt;     // if 分支
-  NodePtr else_stmt;     // else 分支（可选）
+  NodePtr else_stmt;     // else 分支 可选
   IfStmt(NodePtr cond, NodePtr then_stmt, NodePtr else_stmt = nullptr)
       : condition(cond), then_stmt(then_stmt), else_stmt(else_stmt) {}
   std::string to_string() override { return "IfStmt"; }
@@ -244,7 +396,7 @@ class IfStmt : public Node {
   }
 };
 
-// 4. WhileStmt 节点，用于表示 while
+// 实现 WhileStmt 表示 while
 class WhileStmt;
 using WhileStmtPtr = std::shared_ptr<WhileStmt>;
 class WhileStmt : public Node {
