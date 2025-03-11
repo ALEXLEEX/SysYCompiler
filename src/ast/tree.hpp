@@ -71,7 +71,7 @@ class UnaryExp;
 using UnaryExpPtr = std::shared_ptr<UnaryExp>;
 class UnaryExp : public Node {
  public:
-  BinaryOp op;  // 注意：这里用 BinaryOp 来表示一元运算可能会有歧义
+  BinaryOp op;  // 注意 这里用 BinaryOp 来表示一元运算可能会有歧义
   NodePtr exp;
   UnaryExp(BinaryOp op, NodePtr exp) : op(op), exp(exp) {}
   std::string to_string() override {
