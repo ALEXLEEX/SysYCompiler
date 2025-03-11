@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "common.hpp"
+
 extern int yylineno;
 
 namespace AST {
@@ -28,9 +29,7 @@ class Node {
   virtual ~Node() = default;
 };
 
-//-------------------------
-// 以下是已有示例节点
-//-------------------------
+
 class IntConst;
 using IntConstPtr = std::shared_ptr<IntConst>;
 class IntConst : public Node {
@@ -135,6 +134,9 @@ class VarDef : public Node {
  public:
   std::string ident;
   VarDef(const char *ident) : ident(ident) {}
+  // modify
+  int initVal;
+  VarDef(const char *ident, int initVal) : ident(ident), initVal(initVal) {}
   std::string to_string() override { return "VarDef <ident: " + ident + ">"; }
 };
 
@@ -194,9 +196,17 @@ using ExpStmtPtr = std::shared_ptr<ExpStmt>;
 class ExpStmt : public Node {
  public:
   NodePtr exp;  // 这里可以是任意表达式
+  ExpStmt() : exp(nullptr) {}
   ExpStmt(NodePtr exp) : exp(exp) {}
   std::string to_string() override { return "ExpStmt"; }
-  std::vector<NodePtr> get_children() override { return {exp}; }
+  std::vector<NodePtr> get_children() override { 
+    if (exp)
+    {
+      return {exp};
+    }
+    
+    return std::vector<NodePtr>(); 
+  }
 };
 
 // 2. 函数形式参数节点（Param），可以用于表示形参信息

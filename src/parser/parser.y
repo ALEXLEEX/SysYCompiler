@@ -81,8 +81,13 @@ inline std::shared_ptr<T> shared_cast(Node *ptr) {
 %type <node> VarDecl
 %type <node> VarDefs
 %type <node> VarDef
+%type <node> InitVal
+%type <node> InitValList
+%type <node> ArrayDims
+%type <node> ArrayDim
 %type <node> FuncDef
-%type <node> FuncType
+%type <node> FuncFParams
+%type <node> FuncFParam
 %type <node> Block
 %type <node> BlockItem
 %type <node> BlockItems
@@ -90,6 +95,8 @@ inline std::shared_ptr<T> shared_cast(Node *ptr) {
 %type <node> Exp
 %type <node> Cond
 %type <node> LVal
+%type <node> LValArrayDims
+%type <node> LValArrayDim
 %type <node> PrimaryExp
 %type <node> IntConst
 %type <node> UnaryExp
@@ -103,361 +110,175 @@ inline std::shared_ptr<T> shared_cast(Node *ptr) {
 
 %type <op> UnaryOp  // 一元运算符 (+ - !)
 
-%%
-
-/** ============= 语法规则 ============= **/
-
-/** 
- * 整个编译单元(Program) 
- * SysY约定：可以由多条声明或函数定义拼起来。 
- */
-AstRoot
-  : CompUnit { root = NodePtr($1); }
-  ;
-
-/** 
- * CompUnit -> CompUnit Decl
- *           | CompUnit FuncDef
- *           |
- */
-CompUnit
-  : CompUnit Decl      { static_cast<CompUnit*>($1)->add_unit(shared_cast<VarDecl>($2)); $$ = $1; }
-  | CompUnit FuncDef   { static_cast<CompUnit*>($1)->add_unit(shared_cast<FuncDef>($2)); $$ = $1; }
-  | Decl               { $$ = new CompUnit(shared_cast<VarDecl>($1)); }
-  | FuncDef            { $$ = new CompUnit(shared_cast<FuncDef>($1)); }
-  ;
-
-/** 
- * CompUnitItem -> Decl | FuncDef
- * 这样把“声明”和“函数定义”分开处理
- */
-/**CompUnitItem
-  | FuncDef     { $$ = $1; }
-  : Decl        { $$ = $1; }
-  ;*/
-
-/** 
- * 函数定义或声明 
- */
-FuncDef
-  : FuncType IDENT LPAREN RPAREN Block {
-      // FuncType产生式会返回一个 IntConst* (value里存int = BasicType::Int, or BasicType::Void)
-      auto ft = shared_cast<IntConst>($1);
-      BasicType bty = static_cast<BasicType>(ft->value);
-
-      $$ = new FuncDef(
-        bty,
-        $2, // 函数名(IDENT)
-        shared_cast<Block>($5)
-      );
-    }
-    /* 如需支持带形参： 
-    | FuncType IDENT LPAREN FuncFParams RPAREN Block { ... }
-    */
-  ;
-
-/** 
- * 函数类型： int or void
- * 注意： 仅在函数定义时使用
- */
-FuncType
-  : INT {
-      // 用IntConst(value=BasicType::Int)临时表示函数返回类型
-      $$ = new IntConst(static_cast<int>(BasicType::Int));
-    }
-  | VOID {
-      $$ = new IntConst(static_cast<int>(BasicType::Void));
-    }
-  ;
-
-/** 
- * 声明： 只允许 int 变量
- * 例如：int a,b; 
- * 不允许 void a,b; 
- */
-Decl
-  : VarDecl { $$ = $1; }
-  ;
-
-/** 
- * 变量声明 
- * SysY只支持 int 作为变量声明类型 
- */
-VarDecl
-  : INT VarDefs SEMICOLON {
-      auto vd = static_cast<VarDecl*>($2);
-      vd->btype = BasicType::Int;
-      $$ = vd;
-    }
-  ;
-
-/** 
- * VarDefs -> VarDef
- *          | VarDefs , VarDef
- */
-VarDefs
-  : VarDef {
-      // $1: Node*(VarDef*)
-      $$ = new VarDecl(shared_cast<VarDef>($1));
-    }
-  | VarDefs COMMA VarDef {
-      auto vard = static_cast<VarDecl*>($1);
-      vard->add_def(shared_cast<VarDef>($3));
-      $$ = $1;
-    }
-  ;
-
-/** 
- * VarDef -> IDENT
- * (如果要支持数组定义, 在这里加  IDENT '[' INTCONST ']' {...} )
- */
-VarDef
-  : IDENT {
-      $$ = new VarDef($1);
-    }
-  ;
-
-/** 
- * 代码块 
- */
-Block
-  : LBRACE RBRACE {
-      $$ = new Block();
-    }
-  | LBRACE BlockItems RBRACE {
-      $$ = $2;
-    }
-  ;
-
-BlockItems
-  : BlockItem {
-      $$ = new Block(NodePtr($1));
-    }
-  | BlockItems BlockItem {
-      static_cast<Block*>($1)->add_stmt(NodePtr($2));
-      $$ = $1;
-    }
-  ;
-
-/** 
- * 代码块中可以是 声明 或 语句 
- */
-BlockItem
-  : Decl { $$ = $1; }
-  | Stmt { $$ = $1; }
-  ;
-
-/** 
- * 语句 
- * 支持: 
- *  1) LVal '=' Exp ';'
- *  2) Exp ';'
- *  3) return [Exp] ';'
- *  4) if '(' Cond ')' Stmt [else Stmt]
- *  5) while '(' Cond ')' Stmt
- *  6) Block
- */
-Stmt
-  : LVal ASSIGN Exp SEMICOLON {
-      $$ = new AssignStmt(shared_cast<LVal>($1), NodePtr($3));
-    }
-  | Exp SEMICOLON {
-      $$ = $1; // 仅仅一个表达式语句
-    }
-  | RETURN SEMICOLON {
-      $$ = new ReturnStmt(); // return;
-    }
-  | RETURN Exp SEMICOLON {
-      $$ = new ReturnStmt(NodePtr($2)); // return expr;
-    }
-  | IF LPAREN Cond RPAREN Stmt {
-      $$ = new IfStmt(NodePtr($3), NodePtr($5));
-    }
-  | IF LPAREN Cond RPAREN Stmt ELSE Stmt {
-      $$ = new IfStmt(NodePtr($3), NodePtr($5), NodePtr($7));
-    }
-  | WHILE LPAREN Cond RPAREN Stmt {
-      $$ = new WhileStmt(NodePtr($3), NodePtr($5));
-    }
-  | Block {
-      $$ = $1;
-    }
-  ;
-
-/** 
- * 条件表达式 -> 逻辑或表达式 
- */
-Cond
-  : LOrExp { $$ = $1; }
-  ;
-
-/** 
- * 逻辑或(LOrExp) -> 逻辑与(LAndExp) | LOrExp '||' LAndExp
- */
-LOrExp
-  : LAndExp { $$ = $1; }
-  | LOrExp OR LAndExp {
-      $$ = new BinaryExp(BinaryOp::LOr, NodePtr($1), NodePtr($3));
-    }
-  ;
-
-/** 
- * 逻辑与(LAndExp) 
- */
-LAndExp
-  : EqExp { $$ = $1; }
-  | LAndExp AND EqExp {
-      $$ = new BinaryExp(BinaryOp::LAnd, NodePtr($1), NodePtr($3));
-    }
-  ;
-
-/** 
- * 相等性(EqExp)
- */
-EqExp
-  : RelExp { $$ = $1; }
-  | EqExp EQ RelExp {
-      $$ = new BinaryExp(BinaryOp::EQ, NodePtr($1), NodePtr($3));
-    }
-  | EqExp NEQ RelExp {
-      $$ = new BinaryExp(BinaryOp::NEQ, NodePtr($1), NodePtr($3));
-    }
-  ;
-
-/** 
- * 关系(RelExp) 
- */
-RelExp
-  : AddExp { $$ = $1; }
-  | RelExp LT AddExp {
-      $$ = new BinaryExp(BinaryOp::LT, NodePtr($1), NodePtr($3));
-    }
-  | RelExp GT AddExp {
-      $$ = new BinaryExp(BinaryOp::GT, NodePtr($1), NodePtr($3));
-    }
-  | RelExp LE AddExp {
-      $$ = new BinaryExp(BinaryOp::LE, NodePtr($1), NodePtr($3));
-    }
-  | RelExp GE AddExp {
-      $$ = new BinaryExp(BinaryOp::GE, NodePtr($1), NodePtr($3));
-    }
-  ;
-
-/** 
- * Exp -> AddExp 
- */
-Exp
-  : AddExp { $$ = $1; }
-  ;
-
-/** 
- * 加法(AddExp) -> 乘法(MulExp) | AddExp '+' MulExp | ...
- */
-AddExp
-  : MulExp { $$ = $1; }
-  | AddExp ADD MulExp {
-      $$ = new BinaryExp(BinaryOp::Add, NodePtr($1), NodePtr($3));
-    }
-  | AddExp SUB MulExp {
-      $$ = new BinaryExp(BinaryOp::Sub, NodePtr($1), NodePtr($3));
-    }
-  ;
-
-/** 
- * 乘法(MulExp) -> 一元(UnaryExp) | MulExp '*' UnaryExp | ...
- */
-MulExp
-  : UnaryExp { $$ = $1; }
-  | MulExp MUL UnaryExp {
-      $$ = new BinaryExp(BinaryOp::Mul, NodePtr($1), NodePtr($3));
-    }
-  | MulExp DIV UnaryExp {
-      $$ = new BinaryExp(BinaryOp::Div, NodePtr($1), NodePtr($3));
-    }
-  | MulExp MOD UnaryExp {
-      $$ = new BinaryExp(BinaryOp::Mod, NodePtr($1), NodePtr($3));
-    }
-  ;
-
-/** 
- * UnaryExp -> PrimaryExp 
- *           | IDENT '(' [FuncRParams] ')' 
- *           | UnaryOp UnaryExp
- */
-UnaryExp
-  : PrimaryExp { $$ = $1; }
-  | IDENT LPAREN RPAREN {
-      $$ = new FuncCall($1); // 无参函数调用
-    }
-  | IDENT LPAREN FuncRParams RPAREN {
-      static_cast<FuncCall*>($3)->name = $1;
-      $$ = $3; // 有参函数调用
-    }
-  | UnaryOp UnaryExp {
-      $$ = new UnaryExp($1, NodePtr($2));
-    }
-  ;
-
-/** 
- * 一元运算符 
- */
-UnaryOp
-  : ADD { $$ = BinaryOp::Add; }
-  | SUB { $$ = BinaryOp::Sub; }
-  | NOT { $$ = BinaryOp::Not; }
-  ;
-
-/** 
- * 函数实参(可变长) 
- * FuncRParams -> Exp | FuncRParams ',' Exp
- */
-FuncRParams
-  : Exp {
-      $$ = new FuncCall(NodePtr($1));
-    }
-  | FuncRParams COMMA Exp {
-      static_cast<FuncCall*>($1)->add_arg(NodePtr($3));
-      $$ = $1;
-    }
-  ;
-
-/** 
- * 基础表达式 -> '(' Exp ')' | LVal | IntConst
- */
-PrimaryExp
-  : LPAREN Exp RPAREN {
-      $$ = $2;
-    }
-  | LVal {
-      $$ = $1;
-    }
-  | IntConst {
-      $$ = $1;
-    }
-  ;
-
-/** 
- * IntConst -> INTCONST
- */
-IntConst
-  : INTCONST {
-      $$ = new IntConst($1);
-    }
-  ;
-
-/** 
- * LVal -> IDENT 
- * (若要支持数组LVal -> IDENT '[' Exp ']' [...]) 
- */
-LVal
-  : IDENT {
-      $$ = new LVal($1);
-    }
-  ;
+%nonassoc LOWER_THAN_ELSE
+%nonassoc ELSE
 
 %%
 
-// 语法错误处理
+// 由于我们在后续代码中所有指针都是 std::shared_ptr
+// 而在 union 中没法直接定义 std::shared_ptr
+// 所以我们在这里需要将普通的指针转换成 std::shared_ptr
+AstRoot : CompUnit { root = NodePtr($1); }
+    ;
+
+CompUnit : FuncDef { $$ = new CompUnit(shared_cast<FuncDef>($1)); }
+    | CompUnit FuncDef { static_cast<CompUnit*>($1)->add_unit(shared_cast<FuncDef>($2)); $$ = $1; }
+    | VarDecl { $$ = new CompUnit(shared_cast<FuncDef>($1)); }
+    | CompUnit VarDecl { static_cast<CompUnit*>($1)->add_unit(shared_cast<FuncDef>($2)); $$ = $1; }
+    ;
+
+Decl : VarDecl { $$ = $1; }
+    ;
+
+// 由于 union 中的类型不能是 std::shared_ptr
+// 只是普通的指针，所以我们需要通过 static_cast 来转换类型
+// 才能访问到对应的成员和函数
+VarDecl : "int" VarDefs ";" { static_cast<VarDecl *>($2)->btype = BasicType::Int; $$ = $2; }
+    ;
+
+VarDefs : VarDef { $$ = new VarDecl(shared_cast<VarDef>($1)); }
+    | VarDefs "," VarDef { static_cast<VarDecl*>($1)->add_def(shared_cast<VarDef>($3)); $$ = $1; }
+    ;
+
+VarDef : IDENT { $$ = new VarDef($1); }
+    | IDENT "=" InitVal { $$ = new VarDef($1); }
+    | IDENT ArrayDims { $$ = new VarDef($1); }
+    | IDENT ArrayDims "=" InitVal { $$ = new VarDef($1); }
+    ;
+
+ArrayDims : ArrayDim { $$ = $1; }
+    | ArrayDim ArrayDims { $$ = $1; }
+
+ArrayDim : "[" IntConst "]" { $$ = $2; }
+
+InitVal : Exp { $$ = $1; }
+    | "{" InitValList "}" { $$ = $2; }
+    ;
+
+InitValList : /* empty */ { $$ = new ExpStmt(); }
+    | InitVal { $$ = $1; }
+    | InitVal "," InitValList { $$ = $1; }
+    ;
+//这里有个bug 就是可以生成 {1, 2, 3,}
+
+// 同样的，由于 union 中的类型不能是 std::shared_ptr
+// 而 FuncDef 初始化时需要传入一个 BlockPtr (std::shared_ptr<Block>)
+// 所以我们需要通过 static_cast 来转换类型
+// 再用 std::shared_ptr 包装一下
+// 才能传入 FuncDef 的构造函数
+// 这里 shared_cast 是一个自定义的模板函数，用于将普通指针转换成 std::shared_ptr
+// 相当于 std::shared_ptr<T>(static_cast<T*>(ptr))
+FuncDef : "int" IDENT "(" ")" Block { $$ = new FuncDef(BasicType::Int, $2, shared_cast<Block>($5)); }
+    | "void" IDENT "(" ")" Block { $$ = new FuncDef(BasicType::Void, $2, shared_cast<Block>($5)); }
+    | "int" IDENT "(" FuncFParams ")" Block { $$ = new FuncDef(BasicType::Int, $2, shared_cast<Block>($6)); }
+    | "void" IDENT "(" FuncFParams ")" Block { $$ = new FuncDef(BasicType::Void, $2, shared_cast<Block>($6)); }
+    ;
+
+FuncFParams : FuncFParam { }
+    | FuncFParams "," FuncFParam { }
+    ;
+
+FuncFParam : "int" IDENT { }
+    | "int" IDENT "[" "]" { }
+    | "int" IDENT "[" "]" ArrayDims { }
+    ;
+
+Block : "{" "}" { $$ = new Block(); }
+    | "{" BlockItems "}" { $$ = $2; }
+    ;
+
+BlockItems : BlockItem { $$ = new Block(NodePtr($1)); }
+    | BlockItems BlockItem { static_cast<Block*>($1)->add_stmt(NodePtr($2)); $$ = $1; }
+    ;
+
+BlockItem : Stmt { $$ = $1; }
+    | Decl { $$ = $1; }
+    ;
+
+Stmt : LVal "=" Exp ";" { $$ = new AssignStmt(shared_cast<LVal>($1), NodePtr($3)); }
+    | ";" { $$ = new ExpStmt(); }
+    | Exp ";" { $$ = $1; }
+    | "return" Exp ";" { $$ = new ReturnStmt(NodePtr($2)); }
+    | "return" ";" { $$ = new ReturnStmt(); }
+    | "if" "(" Cond ")" Stmt %prec LOWER_THAN_ELSE { $$ = new IfStmt(NodePtr($3), NodePtr($5)); } 
+    | "if" "(" Cond ")" Stmt "else" Stmt { $$ = new IfStmt(NodePtr($3), NodePtr($5), NodePtr($7)); }
+    | "while" "(" Cond ")" Stmt { $$ = new WhileStmt(NodePtr($3), NodePtr($5)); }
+    | Block { $$ = $1; }
+    ;
+
+
+Cond : LOrExp { $$ = $1; }
+    ;
+
+LOrExp : LAndExp { $$ = $1; }
+    | LOrExp "||" LAndExp { $$ = new BinaryExp(BinaryOp::LOr, NodePtr($1), NodePtr($3)); }
+    ;
+
+LAndExp : EqExp { $$ = $1; }
+    | LAndExp "&&" EqExp { $$ = new BinaryExp(BinaryOp::LAnd, NodePtr($1), NodePtr($3)); }
+    ;
+
+EqExp : RelExp { $$ = $1; }
+    | EqExp "==" RelExp { $$ = new BinaryExp(BinaryOp::EQ, NodePtr($1), NodePtr($3)); }
+    | EqExp "!=" RelExp { $$ = new BinaryExp(BinaryOp::NEQ, NodePtr($1), NodePtr($3)); }
+    ;
+
+RelExp : AddExp { $$ = $1; }
+    | RelExp "<" AddExp { $$ = new BinaryExp(BinaryOp::LT, NodePtr($1), NodePtr($3)); }
+    | RelExp ">" AddExp { $$ = new BinaryExp(BinaryOp::GT, NodePtr($1), NodePtr($3)); }
+    | RelExp "<=" AddExp { $$ = new BinaryExp(BinaryOp::LE, NodePtr($1), NodePtr($3)); }
+    | RelExp ">=" AddExp { $$ = new BinaryExp(BinaryOp::GE, NodePtr($1), NodePtr($3)); }
+    ;
+
+Exp : AddExp { $$ = $1; }
+    ;
+
+LVal : IDENT { $$ = new LVal($1); }
+    | IDENT LValArrayDims { $$ = new LVal($1); }
+    ;
+
+LValArrayDims : LValArrayDim { $$ = $1; }
+    | LValArrayDim LValArrayDims { $$ = $1; }
+
+LValArrayDim : "[" Exp "]" { $$ = $2; }
+
+
+PrimaryExp : LVal { $$ = $1; }
+    | IntConst { $$ = $1; }
+    | "(" Exp ")" { $$ = $2; }
+    ;
+
+IntConst : INTCONST { $$ = new IntConst($1); }
+    ;
+
+UnaryExp : PrimaryExp { $$ = $1; }
+    | IDENT "(" ")" { $$ = new FuncCall($1); }
+    | IDENT "(" FuncRParams ")" { static_cast<FuncCall*>($3)->name = $1; $$ = $3; }
+    | UnaryOp UnaryExp { $$ = new UnaryExp($1, NodePtr($2)); }
+    ;
+
+UnaryOp : "+" { $$ = BinaryOp::Add; }
+    | "-" { $$ = BinaryOp::Sub; }
+    | "!" { $$ = BinaryOp::Not; }
+    ;
+
+FuncRParams : Exp { $$ = new FuncCall(NodePtr($1)); }
+    | FuncRParams "," Exp { static_cast<FuncCall*>($1)->add_arg(NodePtr($3)); $$ = $1; }
+    ;
+
+MulExp : UnaryExp { $$ = $1; }
+    | MulExp "*" UnaryExp { $$ = new BinaryExp(BinaryOp::Mul, NodePtr($1), NodePtr($3)); }
+    | MulExp "/" UnaryExp { $$ = new BinaryExp(BinaryOp::Div, NodePtr($1), NodePtr($3)); }
+    | MulExp "%" UnaryExp { $$ = new BinaryExp(BinaryOp::Mod, NodePtr($1), NodePtr($3)); }
+    ;
+
+AddExp : MulExp { $$ = $1; }
+    | AddExp "+" MulExp { $$ = new BinaryExp(BinaryOp::Add, NodePtr($1), NodePtr($3)); }
+    | AddExp "-" MulExp { $$ = new BinaryExp(BinaryOp::Sub, NodePtr($1), NodePtr($3)); }
+    ;
+
+%%
+
 void yyerror(const char *s) {
-    std::cerr << "Parse error: " << s << std::endl;
+    printf("error: %s\n", s);
 }
