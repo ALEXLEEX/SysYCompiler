@@ -123,8 +123,8 @@ AstRoot : CompUnit { root = NodePtr($1); }
 
 CompUnit : FuncDef { $$ = new CompUnit(shared_cast<FuncDef>($1)); }
     | CompUnit FuncDef { static_cast<CompUnit*>($1)->add_unit(shared_cast<FuncDef>($2)); $$ = $1; }
-    | VarDecl { $$ = new CompUnit(shared_cast<FuncDef>($1)); }
-    | CompUnit VarDecl { static_cast<CompUnit*>($1)->add_unit(shared_cast<FuncDef>($2)); $$ = $1; }
+    | VarDecl { $$ = new CompUnit(shared_cast<VarDecl>($1)); }
+    | CompUnit VarDecl { static_cast<CompUnit*>($1)->add_unit(shared_cast<VarDecl>($2)); $$ = $1; }
     ;
 
 Decl : VarDecl { $$ = $1; }
@@ -141,23 +141,30 @@ VarDefs : VarDef { $$ = new VarDecl(shared_cast<VarDef>($1)); }
     ;
 
 VarDef : IDENT { $$ = new VarDef($1); }
-    | IDENT "=" InitVal { $$ = new VarDef($1); }
-    | IDENT ArrayDims { $$ = new VarDef($1); }
-    | IDENT ArrayDims "=" InitVal { $$ = new VarDef($1); }
+    | IDENT "=" InitVal { $$ = new VarDef($1, shared_cast<InitVal>($3)); }
+    | IDENT ArrayDims { static_cast<VarDef*>($2)->set_ident($1); $$ = $2; }
+    | IDENT ArrayDims "=" InitVal {
+        // 设置名字
+        static_cast<VarDef*>($2)->set_ident($1);
+        // 添加初值
+        static_cast<VarDef*>($2)->add_initVal(shared_cast<InitVal>($4));
+        $$ = $2;
+      }
     ;
 
-ArrayDims : ArrayDim { $$ = $1; }
-    | ArrayDim ArrayDims { $$ = $1; }
+ArrayDims : ArrayDim { $$ = new VarDef((shared_cast<IntConst>($1))->get_value()); }
+    | ArrayDim ArrayDims { static_cast<VarDef*>($2)->add_dim((shared_cast<IntConst>($1))->get_value()); $$ = $2; }
 
+// ArrayDim 是 IntConst 指针
 ArrayDim : "[" IntConst "]" { $$ = $2; }
 
-InitVal : Exp { $$ = $1; }
+InitVal : Exp { $$ = new InitVal(shared_cast<Node>($1)); }
     | "{" InitValList "}" { $$ = $2; }
     ;
 
-InitValList : /* empty */ { $$ = new ExpStmt(); }
-    | InitVal { $$ = $1; }
-    | InitVal "," InitValList { $$ = $1; }
+InitValList : /* empty */ { $$ = new InitVal(); }
+    | InitVal { $$ = new InitVal(shared_cast<InitVal>($1)); }
+    | InitVal "," InitValList { static_cast<InitVal*>($3)->add_sub(shared_cast<InitVal>($1)); $$ = $3; }
     ;
 //这里有个bug 就是可以生成 {1, 2, 3,}
 
@@ -170,17 +177,17 @@ InitValList : /* empty */ { $$ = new ExpStmt(); }
 // 相当于 std::shared_ptr<T>(static_cast<T*>(ptr))
 FuncDef : "int" IDENT "(" ")" Block { $$ = new FuncDef(BasicType::Int, $2, shared_cast<Block>($5)); }
     | "void" IDENT "(" ")" Block { $$ = new FuncDef(BasicType::Void, $2, shared_cast<Block>($5)); }
-    | "int" IDENT "(" FuncFParams ")" Block { $$ = new FuncDef(BasicType::Int, $2, shared_cast<Block>($6)); }
-    | "void" IDENT "(" FuncFParams ")" Block { $$ = new FuncDef(BasicType::Void, $2, shared_cast<Block>($6)); }
+    | "int" IDENT "(" FuncFParams ")" Block { $$ = new FuncDef(BasicType::Int, $2, shared_cast<Block>($6), static_cast<FuncDef*>($4)->get_params()); }
+    | "void" IDENT "(" FuncFParams ")" Block { $$ = new FuncDef(BasicType::Void, $2, shared_cast<Block>($6), static_cast<FuncDef*>($4)->get_params()); }
     ;
 
-FuncFParams : FuncFParam { }
-    | FuncFParams "," FuncFParam { }
+FuncFParams : FuncFParam { $$ = new FuncDef(shared_cast<Param>($1)); }
+    | FuncFParams "," FuncFParam { static_cast<FuncDef*>($1)->add_param(shared_cast<Param>($3)); $$ = $1; }
     ;
 
-FuncFParam : "int" IDENT { }
-    | "int" IDENT "[" "]" { }
-    | "int" IDENT "[" "]" ArrayDims { }
+FuncFParam : "int" IDENT { $$ = new Param($2); }
+    | "int" IDENT "[" "]" { $$ = new Param($2, -1); }
+    | "int" IDENT "[" "]" ArrayDims { $$ = new Param($2, -1); static_cast<Param*>($$)->add_dims((shared_cast<VarDef>($5))->get_dims()); }
     ;
 
 Block : "{" "}" { $$ = new Block(); }

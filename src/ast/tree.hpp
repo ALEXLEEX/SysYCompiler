@@ -35,6 +35,8 @@ class IntConst : public Node {
  public:
   int value;
   IntConst(int value) : value(value) {}
+  // 增加一个函数 用于获取他的值 为了数组维度服务
+  int get_value() { return value; }
   std::string to_string() override {
     return "IntConst <value: " + std::to_string(value) + ">";
   }
@@ -165,6 +167,9 @@ class InitVal : public Node {
   InitVal(const std::vector<InitValPtr> &subs)
     : kind(Kind::BRACE), expr(nullptr), subInitVals(subs) {}
 
+  // 构造3 花括号内为空
+  InitVal() : kind(Kind::BRACE), expr(nullptr) {}
+
   // 如果在解析时，需要反复添加 subInitVal, 就加一个 add_sub(InitValPtr)
   void add_sub(const InitValPtr &val) {
     subInitVals.push_back(val);
@@ -211,11 +216,27 @@ class VarDef : public Node {
   // 构造函数1 仅有标识符(标量 无数组 无初值)
   VarDef(const char *ident) : ident(ident), initVal(nullptr) {}
 
-  // 构造函数2 传入整维度信息 初始化器
+  // 构造函数2 传入初始化器
+  VarDef(const char *ident, InitValPtr initVal) : ident(ident), initVal(initVal) {}
+
+  // 构造函数3 传入整维度信息
+  VarDef(const char *ident, int dim) : ident(ident), initVal(nullptr) {
+    dims.push_back(dim);
+  }
+  VarDef(int dim) : ident("temp"), initVal(nullptr) {
+    dims.push_back(dim);
+  }
+  // 修改ident
+  void set_ident(const char *ident) { this->ident = ident; }
+  // 获取dims
+  std::vector<int> get_dims() { return dims; }
+
+  // 构造函数4 传入整维度信息 初始化器
   VarDef(const char *ident, int dim, InitValPtr initVal) : ident(ident), initVal(initVal) {
     dims.push_back(dim);
   }
-  void add_dim(int dim) { dims.push_back(dim); }
+  void add_dim(int dim) { dims.insert(dims.begin(), dim); }
+  void add_initVal(InitValPtr initVal) { this->initVal = initVal; }
   std::string to_string() override {
     // 在打印里可以显示 ident dims大小 以及是否有初值
     std::string info = "VarDef <ident: " + ident + ">";
@@ -259,6 +280,47 @@ class VarDecl : public Node {
   }
 };
 
+// 实现函数形参 Param 表示形参信息
+class Param;
+using ParamPtr = std::shared_ptr<Param>;
+class Param : public Node {
+ public:
+  std::string ident;
+  // 扩展支持数组维度
+  std::vector<int> dims;
+  Param(const char *ident) : ident(ident) {}
+  Param(const char *ident, int dim) : ident(ident) {
+    // 第一维度肯定是 [ ] 空 所以我们直接 push 一个-1
+    dims.push_back(dim);
+  }
+  // 这里我们直接不创建 IntConst 节点了 直接传入 INTCONST 的属性值 int_val
+  // 太招笑了家人们 根本不是IntConst 而是ArrayDims
+  void add_dim(int dim) { dims.push_back(dim); }
+  // 添加维度数组
+  void add_dims(const std::vector<int> &dims) {
+    this->dims.insert(this->dims.end(), dims.begin(), dims.end());
+  }
+  std::string to_string() override {
+    // 可以在输出中显示每个维度
+    // 例如: Param <ident: arr, dims=[null,10,20]>
+    std::string info = "Param <ident: ";
+    info += ident;
+
+    if (!dims.empty()) {
+      info += ", dims=[";
+      for (size_t i = 0; i < dims.size(); i++) {
+        if (i > 0) info += ",";
+        // 用-1表示空尺寸
+        if (dims[i] == -1) info += "null";
+        else info += std::to_string(dims[i]);
+      }
+      info += "]";
+    }
+    info += ">";
+    return info;
+  }
+};
+
 class FuncDef;
 using FuncDefPtr = std::shared_ptr<FuncDef>;
 class FuncDef : public Node {
@@ -266,10 +328,10 @@ class FuncDef : public Node {
   BasicType return_btype;
   std::string name;
 // #warning Have not support params yet
+  BlockPtr block;
   // 存放形参列表
   std::vector<ParamPtr> params;
 
-  BlockPtr block;
   FuncDef(BasicType return_btype, const char *name, BlockPtr block)
       : return_btype(return_btype), name(name), block(block) {}
   // 创建该节点的时候就是应该直接存入第一个 Param 节点
@@ -277,7 +339,17 @@ class FuncDef : public Node {
       : return_btype(return_btype), name(name), block(block) {
     params.push_back(param);
   }
+  // 一次性获得一整个形参列表的构造函数
+  FuncDef(BasicType return_btype, const char *name, BlockPtr block, const std::vector<ParamPtr> &params)
+      : return_btype(return_btype), name(name), block(block), params(params) {}
+  // 只有 param 的构造函数 其他为默认值 为了供给FuncFParams使用
+  FuncDef(ParamPtr param) : return_btype(BasicType::Unknown), name(""), block(nullptr) {
+    params.push_back(param);
+  }
+  // 添加一个形参
   void add_param(ParamPtr param) { params.push_back(param); }
+  // 获得形参列表
+  std::vector<ParamPtr> get_params() { return params; }
   std::string to_string() override {
     // 例如: FuncDef <return_btype: int, name: foo, param_count=2>
     return "FuncDef <return_btype: " +
@@ -337,44 +409,7 @@ class PrimaryExp : public Node {
   std::vector<NodePtr> get_children() override { return {exp}; }
 };
 
-// 实现函数形参 Param 表示形参信息
-class Param;
-using ParamPtr = std::shared_ptr<Param>;
-class Param : public Node {
- public:
-  BasicType btype;
-  std::string ident;
-  // 扩展支持数组维度
-  std::vector<int> dims;
-  Param(BasicType btype, const char *ident) : btype(btype), ident(ident) {}
-  Param(BasicType btype, const char *ident, int dim=-1) : btype(btype), ident(ident) {
-    // 第一维度肯定是 [ ] 空 所以我们直接 push 一个-1
-    dims.push_back(dim);
-  }
-  // 这里我们直接不创建 IntConst 节点了 直接传入 INTCONST 的属性值 int_val
-  void add_dim(int dim) { dims.push_back(dim); }
-  std::string to_string() override {
-    // 可以在输出中显示每个维度
-    // 例如: Param <btype: int, ident: arr, dims=[null,10,20]>
-    std::string info = "Param <btype: ";
-    info += type_to_string(btype);
-    info += ", ident: ";
-    info += ident;
 
-    if (!dims.empty()) {
-      info += ", dims=[";
-      for (size_t i = 0; i < dims.size(); i++) {
-        if (i > 0) info += ",";
-        // 用-1表示空尺寸
-        if (dims[i] == -1) info += "null";
-        else info += std::to_string(dims[i]);
-      }
-      info += "]";
-    }
-    info += ">";
-    return info;
-  }
-};
 
 // 实现 IfStmt 表示 if / if-else
 class IfStmt;
