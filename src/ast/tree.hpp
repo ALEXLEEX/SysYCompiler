@@ -52,8 +52,13 @@ class LVal : public Node {
   std::vector<NodePtr> dims;
   LVal(std::string ident) : ident(ident) {}
   // 如果是数组的话 parser.y里面使用下面的构造函数和添加维度函数
+  // 注意注意!!!!但是因为LVal[Exp][Exp]这种形式的数组难以求出维度值
+  // LVal 在 = 左边一定是求值到int 但是call(a[1])的时候可以求值到地址 此处a是二维数组
+  // Exp 可能是 Unary Binary Primary FuncCall LVal Number
+  // 所以这里我们只能给出LVal到底有多少维 但是无法给出每一维的大小
   LVal(std::string ident, NodePtr dim) : ident(ident) { dims.push_back(dim); }
-  void add_dim(NodePtr dim) { dims.push_back(dim); }
+  // 从开头添加维度
+  void add_dim(NodePtr dim) { dims.insert(dims.begin(), dim); }
   std::string to_string() override { 
     // 可选地在打印中提示下标维度数
     // 比如 "LVal <ident: arr> (dims=2)"
@@ -395,7 +400,8 @@ class ExpStmt : public Node {
   NodePtr exp;  // 这里可以是任意表达式
   ExpStmt() : exp(nullptr) {}
   ExpStmt(NodePtr exp) : exp(exp) {}
-  std::string to_string() override { return "ExpStmt"; }
+  // std::string to_string() override { return "ExpStmt"; }
+  std::string to_string() override { return "NullStmt"; }
   std::vector<NodePtr> get_children() override { 
     return exp ? std::vector<NodePtr>{exp} : std::vector<NodePtr>();
   }
@@ -408,7 +414,7 @@ class PrimaryExp : public Node {
  public:
   NodePtr exp;
   PrimaryExp(NodePtr exp) : exp(exp) {}
-  std::string to_string() override { return "PrimaryExp"; }
+  std::string to_string() override { return "PrimaryExp <op: ()> "; }
   std::vector<NodePtr> get_children() override { return {exp}; }
 };
 

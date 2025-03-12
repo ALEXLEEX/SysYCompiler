@@ -164,7 +164,6 @@ InitVal : Exp { $$ = new InitVal(shared_cast<Node>($1)); }
     | "{" InitValList "}" { $$ = $2; }
     ;
 
-// /* empty */ { $$ = new InitVal(); }
 InitValList : InitVal { $$ = new InitVal(shared_cast<InitVal>($1)); }
     | InitVal "," InitValList { static_cast<InitVal*>($3)->add_sub(shared_cast<InitVal>($1)); $$ = $3; }
     ;
@@ -242,19 +241,20 @@ RelExp : AddExp { $$ = $1; }
 Exp : AddExp { $$ = $1; }
     ;
 
+// 此处才改为正确的名字
 LVal : IDENT { $$ = new LVal($1); }
-    | IDENT LValArrayDims { $$ = new LVal($1); }
+    | IDENT LValArrayDims { static_cast<LVal*>($2)->ident = std::string($1); $$ = $2; }
     ;
 
-LValArrayDims : LValArrayDim { $$ = $1; }
-    | LValArrayDim LValArrayDims { $$ = $1; }
+LValArrayDims : LValArrayDim { $$ = new LVal(" " ,shared_cast<Node>($1)); }
+    | LValArrayDim LValArrayDims { static_cast<LVal*>($2)->add_dim(shared_cast<Node>($1)); $$ = $2; }
 
 LValArrayDim : "[" Exp "]" { $$ = $2; }
 
 
 PrimaryExp : LVal { $$ = $1; }
     | IntConst { $$ = $1; }
-    | "(" Exp ")" { $$ = $2; }
+    | "(" Exp ")" { $$ = new PrimaryExp(shared_cast<Node>($2)); }
     ;
 
 IntConst : INTCONST { $$ = new IntConst($1); }
