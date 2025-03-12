@@ -21,7 +21,7 @@ class TypeChecker {
   TypePtr checkUnaryExp(AST::UnaryExpPtr node);
   TypePtr checkBinaryExp(AST::BinaryExpPtr node);
   TypePtr checkFuncCall(AST::FuncCallPtr node);
-  TypePtr checkBlock(AST::BlockPtr node);
+  TypePtr checkBlock(AST::BlockPtr node, bool new_scope = true);
   TypePtr checkAssignStmt(AST::AssignStmtPtr node);
   TypePtr checkReturnStmt(AST::ReturnStmtPtr node);
   TypePtr checkVarDef(AST::VarDefPtr node, BasicType var_type);

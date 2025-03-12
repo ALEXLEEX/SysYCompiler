@@ -1,19 +1,22 @@
 #include "symbol_table.hpp"
 
-std::string SymbolTable::add_symbol(SymbolPtr symbol) {
+SymbolPtr SymbolTable::add_symbol(std::string name, TypePtr type) {
   // 实现符号表的插入操作
-  // 并设置 symbol 的 unique_name 属性
+  // 并设置 symbol 的 unique_name 属性（你也可以等到 IR Translation 阶段再设置）
   // 对于局部变量和数组，最好为该标识符重新生成一个唯一名称
   // 对于全局变量和函数，直接使用原名称即可
-  // 这样在后续 IR Translation 阶段就不需要考虑 scope 的问题
-  // 最后返回该标识符的唯一名称
+  // 最后，如果插入成功，返回新的符号
+  // 如果符号已经存在，返回 nullptr
 
 #warning Not implemented: SymbolTable::add_symbol
+  return nullptr;
 }
 
-SymbolPtr SymbolTable::find_symbol(std::string name) const {
+SymbolPtr SymbolTable::find_symbol(std::string name,
+                                   bool in_current_scope) const {
   // 实现符号表的查找操作
   // 找到了返回对应的符号，否则返回 nullptr
+  // in_current_scope 为 true 时，只在当前作用域查找
 
 #warning Not implemented: SymbolTable::find_symbol
   return nullptr;

@@ -42,25 +42,25 @@ TypePtr TypeChecker::checkCompUnit(AST::CompUnitPtr node) {
   for (auto &unit : node->units) {
     check(unit);
   }
-  return node->type = nullptr;
+  return nullptr;
 }
 
 TypePtr TypeChecker::checkFuncDef(AST::FuncDefPtr node) {
   // 在这个函数中，你需要判断函数是否已经被定义过
   // 如果函数已经被定义过，你需要报错
   // 否则，你需要将函数插入符号表，并在符号表中创建一个新的作用域
-  // 再将函数参数也插入符号表
+  // 再将函数参数也插入符号表，并将符号表中对应的 symbol 挂到 FuncDef 节点上
   // 最后检查函数体的语句块
 
 #warning Not implemented: TypeChecker::checkFuncDef
-  return node->type = nullptr;
+  return nullptr;
 }
 
 TypePtr TypeChecker::checkVarDecl(AST::VarDeclPtr node) {
   for (auto var_def : node->defs) {
     checkVarDef(var_def, node->btype);
   }
-  return node->type = nullptr;
+  return nullptr;
 }
 
 TypePtr TypeChecker::checkVarDef(AST::VarDefPtr node, BasicType var_type) {
@@ -72,16 +72,18 @@ TypePtr TypeChecker::checkVarDef(AST::VarDefPtr node, BasicType var_type) {
 
 #warning Not implemented: TypeChecker::checkVarDef
 
-  // 将变量插入符号表，并重命名变量为他的 unique name
-  node->ident = symbol_table.add_symbol(node->ident, type);
-  return node->type = nullptr;
+  // 将变量插入符号表，并将符号表中的 symbol 挂到 VarDef 节点上
+  node->symbol = symbol_table.add_symbol(node->ident, type);
+  return nullptr;
 }
 
-TypePtr TypeChecker::checkBlock(AST::BlockPtr node) {
-  // 检查块内的每个语句，记得要在进入和退出块时更新符号表，创建、销毁新的作用域
+TypePtr TypeChecker::checkBlock(AST::BlockPtr node, bool new_scope) {
+  // 检查块内的每个语句
+  // 如果 new_scope 为 true
+  // 你需要在进入和退出块时更新符号表，创建、销毁新的作用域
 
 #warning Not implemented: TypeChecker::checkBlock
-  return node->type = nullptr;
+  return nullptr;
 }
 
 TypePtr TypeChecker::checkAssignStmt(AST::AssignStmtPtr node) {
@@ -92,7 +94,7 @@ TypePtr TypeChecker::checkAssignStmt(AST::AssignStmtPtr node) {
   // 因此你需要判断 lval_type 和 expr_type 是否都为 int 类型
 
 #warning Not implemented: TypeChecker::checkAssignStmt
-  return node->type = lval_type;
+  return lval_type;
 }
 
 TypePtr TypeChecker::checkReturnStmt(AST::ReturnStmtPtr node) {
@@ -100,35 +102,35 @@ TypePtr TypeChecker::checkReturnStmt(AST::ReturnStmtPtr node) {
   // 判断返回值类型是否和函数声明的返回值类型相同
 
 #warning Not implemented: TypeChecker::checkReturnStmt
-  return node->type = nullptr;
+  return nullptr;
 }
 
 TypePtr TypeChecker::checkLVal(AST::LValPtr node) {
   // 你需要在这里查找符号表，判断变量是否被定义过
   // 根据符号表中的信息设置 LVal 的类型
   // 若变量未定义，你需要报错
-  // 否则，将 ident 设置为 symbol 中的 unique name，这样
-  // 在后续的 IR Translation 阶段就不需要考虑 scope 的问题了
+  // 否则，将符号表中的 symbol 挂到 LVal 节点上
   // 如果 LVal 是数组，你还需要根据下标索引来设置 LVal 的类型
 
 #warning Not implemented: TypeChecker::checkLVal
   // 你需要返回 LVal 的类型
-  return node->type = nullptr;
+  return nullptr;
 }
 
 TypePtr TypeChecker::checkIntConst(AST::IntConstPtr node) {
   // 整数常量的类型是 int
-  return node->type = PrimitiveType::Int;
+  return PrimitiveType::Int;
 }
 
 TypePtr TypeChecker::checkFuncCall(AST::FuncCallPtr node) {
   // 首先需要查找函数是否被定义过
   // 然后需要判断函数调用的参数个数和类型是否和声明一致
   // 最后设置函数调用表达式的类型为函数的返回值类型
+  // 并将函数的 symbol 挂到 FuncCall 节点上
 
 #warning Not implemented: TypeChecker::checkFuncCall
   // 你需要返回函数调用表达式的类型
-  return node->type = nullptr;
+  return nullptr;
 }
 
 TypePtr TypeChecker::checkUnaryExp(AST::UnaryExpPtr node) {
@@ -136,7 +138,7 @@ TypePtr TypeChecker::checkUnaryExp(AST::UnaryExpPtr node) {
   // 一元表达式只支持 int 类型，因此你需要判断 type 是否为 int
 
 #warning Not implemented: TypeChecker::checkUnaryExp
-  return node->type = PrimitiveType::Int;
+  return PrimitiveType::Int;
 }
 
 TypePtr TypeChecker::checkBinaryExp(AST::BinaryExpPtr node) {
@@ -145,5 +147,5 @@ TypePtr TypeChecker::checkBinaryExp(AST::BinaryExpPtr node) {
   // 二元表达式只支持 int 类型，因此你需要判断左右表达式的类型是否为 int
 
 #warning Not implemented: TypeChecker::checkBinaryExp
-  return node->type = PrimitiveType::Int;
+  return PrimitiveType::Int;
 }

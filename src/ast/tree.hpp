@@ -7,7 +7,7 @@
 #include <vector>
 
 #include "common.hpp"
-#include "semantic/type.hpp"
+#include "semantic/symbol_table.hpp"
 
 extern int yylineno;
 
@@ -21,7 +21,6 @@ class Node {
  public:
   //存储节点所在的(结束)行号
   int lineno;
-  TypePtr type;
 
   virtual std::vector<NodePtr> get_children() { return std::vector<NodePtr>(); }
   void print_tree(std::string prefix = "", std::string info_prefix = "");
@@ -52,6 +51,7 @@ class LVal : public Node {
 // #warning Have not support array yet
   // 这里存每个下标的表达式 如不是数组 则此项为空
   std::vector<NodePtr> dims;
+  SymbolPtr symbol;
   LVal(std::string ident) : ident(ident) {}
   // 如果是数组的话 parser.y里面使用下面的构造函数和添加维度函数
   // 注意注意!!!!但是因为LVal[Exp][Exp]这种形式的数组难以求出维度值
@@ -108,7 +108,8 @@ class FuncCall : public Node {
  public:
   std::string name;
   std::vector<NodePtr> args;
-  FuncCall(const char *name) : name(name) {}
+  SymbolPtr symbol;
+  FuncCall(char const *name) : name(name) {}
   FuncCall(NodePtr exp) { add_arg(exp); }
   void add_arg(NodePtr exp) { args.push_back(exp); }
   std::string to_string() override { return "FuncCall <name: " + name + ">"; }
@@ -218,6 +219,7 @@ using VarDefPtr = std::shared_ptr<VarDef>;
 class VarDef : public Node {
  public:
   std::string ident;
+  SymbolPtr symbol;
   // 支持数组和符合初值
   std::vector<int> dims;
   // 新增初值节点 如果没有 = 则为空
@@ -342,6 +344,7 @@ class FuncDef : public Node {
   // 存放形参列表
   std::vector<ParamPtr> params;
 
+  SymbolPtr symbol;
   FuncDef(BasicType return_btype, const char *name, BlockPtr block)
       : return_btype(return_btype), name(name), block(block) {}
   // 创建该节点的时候就是应该直接存入第一个 Param 节点
