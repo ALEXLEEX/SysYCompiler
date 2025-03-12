@@ -1,6 +1,6 @@
 #ifndef AST_TREE_HPP
 #define AST_TREE_HPP
-
+// lab2 到底要做到如何的语法分析树啊 无能狂怒 :(
 #include <iostream>
 #include <memory>
 #include <string>
@@ -163,21 +163,24 @@ class InitVal : public Node {
   // 构造1 表达式
   InitVal(NodePtr e) : kind(Kind::EXP), expr(e) {}
 
-  // 构造2 花括号复合
-  InitVal(const std::vector<InitValPtr> &subs)
-    : kind(Kind::BRACE), expr(nullptr), subInitVals(subs) {}
+  // 构造2 单个InitVal
+  InitVal(InitValPtr val) : kind(Kind::BRACE), expr(nullptr) {
+    subInitVals.push_back(val);
+  }
+
+  // // 构造2 花括号复合
+  // InitVal(const std::vector<InitValPtr> &subs)
+  //   : kind(Kind::BRACE), expr(nullptr), subInitVals(subs) {}
 
   // 构造3 花括号内为空
   InitVal() : kind(Kind::BRACE), expr(nullptr) {}
 
-  // 如果在解析时，需要反复添加 subInitVal, 就加一个 add_sub(InitValPtr)
-  void add_sub(const InitValPtr &val) {
-    subInitVals.push_back(val);
-  }
+  // 如果在解析时，需要反复添加 subInitVal, 就加一个 add_sub(InitValPtr) 但是要添加到 subInitVals 头部
+  void add_sub(InitValPtr val) { subInitVals.insert(subInitVals.begin(), val); }
 
   std::string to_string() override {
     if (kind == Kind::EXP) {
-      return "InitVal(Expr)";
+      return "InitVal(Exp)";
     } else {
       // BRACE
       return "InitVal(Brace) size=" + std::to_string(subInitVals.size());

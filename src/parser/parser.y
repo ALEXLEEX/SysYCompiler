@@ -158,12 +158,14 @@ ArrayDims : ArrayDim { $$ = new VarDef((shared_cast<IntConst>($1))->get_value())
 // ArrayDim 是 IntConst 指针
 ArrayDim : "[" IntConst "]" { $$ = $2; }
 
+// 根据定义 不会出现 {{{{{ }}}}} 必须有 {{{Exp}}} 或者是 {} 单个
 InitVal : Exp { $$ = new InitVal(shared_cast<Node>($1)); }
+    | "{" "}" { $$ = new InitVal(); }
     | "{" InitValList "}" { $$ = $2; }
     ;
 
-InitValList : /* empty */ { $$ = new InitVal(); }
-    | InitVal { $$ = new InitVal(shared_cast<InitVal>($1)); }
+// /* empty */ { $$ = new InitVal(); }
+InitValList : InitVal { $$ = new InitVal(shared_cast<InitVal>($1)); }
     | InitVal "," InitValList { static_cast<InitVal*>($3)->add_sub(shared_cast<InitVal>($1)); $$ = $3; }
     ;
 //这里有个bug 就是可以生成 {1, 2, 3,}
