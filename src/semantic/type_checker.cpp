@@ -2,11 +2,25 @@
 
 #include "common.hpp"
 
+// for convenience, define some macros or helper 
+static inline bool is_int(const TypePtr &t) {
+  auto prim = std::dynamic_pointer_cast<PrimitiveType>(t);
+  return (prim && prim->basic_type == BasicType::Int);
+}
+
+static inline bool is_void(const TypePtr &t) {
+  auto prim = std::dynamic_pointer_cast<PrimitiveType>(t);
+  return (prim && prim->basic_type == BasicType::Void);
+}
+
 TypeChecker::TypeChecker() {
   // 你需要在这里对 symbol_table 进行初始化
   // 插入一些内置函数，如 read 和 write
-
-#warning Not implemented: TypeChecker::TypeChecker
+  symbol_table.enter_scope();
+  // 插入内置函数 read 和 write
+  symbol_table.add_symbol("read", FuncType::create(PrimitiveType::Int, {}));
+  symbol_table.add_symbol("write", FuncType::create(PrimitiveType::Void, {PrimitiveType::Int}));
+// #warning Not implemented: TypeChecker::TypeChecker
 }
 
 TypePtr TypeChecker::check(AST::NodePtr node) {
@@ -23,13 +37,18 @@ TypePtr TypeChecker::check(AST::NodePtr node) {
   CHECK_NODE(Block)
   CHECK_NODE(AssignStmt)
   CHECK_NODE(ReturnStmt)
+  // added
+  CHECK_NODE(IfStmt)
+  CHECK_NODE(WhileStmt)
+  CHECK_NODE(ExpStmt)
+  //
   CHECK_NODE(LVal)
   CHECK_NODE(IntConst)
   CHECK_NODE(FuncCall)
   CHECK_NODE(UnaryExp)
   CHECK_NODE(BinaryExp)
 
-#warning Add more AST node types if needed
+// #warning Add more AST node types if needed
 
 #undef CHECK_NODE
 
@@ -51,8 +70,44 @@ TypePtr TypeChecker::checkFuncDef(AST::FuncDefPtr node) {
   // 否则，你需要将函数插入符号表，并在符号表中创建一个新的作用域
   // 再将函数参数也插入符号表，并将符号表中对应的 symbol 挂到 FuncDef 节点上
   // 最后检查函数体的语句块
+  BasicType bty = node->return_btype;
+  auto funcType = std::make_shared<FuncType>();
+  funcType->return_type = PrimitiveType::create(bty);
+  // std::vector<TypePtr> param_types;
+  // for (auto &param : node->params) {
+  //   auto type = PrimitiveType::create(param->btype);
+  //   param_types.push_back(type);
+  //   node->symbol = symbol_table.add_symbol(param->ident, type);
+  // }
+  // funcType->param_types = param_types;
 
-#warning Not implemented: TypeChecker::checkFuncDef
+  // insert symbol
+  auto sym = symbol_table.add_symbol(node->name, funcType);
+  if (!sym) {
+    // redefined
+    std::cerr << "Error: function " << node->name << " redefined at line " 
+      << node->lineno << std::endl;
+    exit(1);
+  }
+  node->symbol = sym;
+
+  // set current function return type
+  current_func_return_type = funcType->return_type;
+
+  // enter scope
+  symbol_table.enter_scope();
+
+  // insert params UNDONE
+
+  // check block
+  check(node->block);
+
+  // exit scope
+  symbol_table.exit_scope();
+
+  // revert current function return type
+  current_func_return_type = nullptr;
+// #warning Not implemented: TypeChecker::checkFuncDef
   return nullptr;
 }
 
