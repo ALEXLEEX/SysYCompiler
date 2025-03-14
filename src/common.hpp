@@ -65,6 +65,10 @@ inline constexpr const char *op_to_string(BinaryOp op) {
 }
 
 // use C++ RTTI to check the type of a shared_ptr
+// 用于判断一个 shared_ptr 是否是某个类型
+// 将 U 类型的 shared_ptr 转换为 T 类型的 shared_ptr
+// 如果转换成功则说明 U 是 T 的派生类
+// 用法示例: type_of<BinaryExp>(node)
 template <typename T, typename U>
 inline bool type_of(const std::shared_ptr<U> &node) {
   return std::dynamic_pointer_cast<T>(node) != nullptr;

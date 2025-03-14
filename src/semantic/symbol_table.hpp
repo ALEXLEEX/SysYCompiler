@@ -46,7 +46,12 @@ class SymbolTable {
   void exit_scope();
 
  private:
-#warning Not implemented: SymbolTable
+// #warning Not implemented: SymbolTable
+  // scope_stack stores all scopes, each scope is a hash table
+  // scope_stack.back() is the current scope
+  // scope_stack[0] is the global scope
+  std::vector<std::unordered_map<std::string, SymbolPtr>> scope_stack;
+  int local_count = 0;
 };
 
 #endif  // SEMANTIC_SYMBOL_TABLE_HPP
