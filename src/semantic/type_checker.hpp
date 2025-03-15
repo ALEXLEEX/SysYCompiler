@@ -23,8 +23,7 @@ class TypeChecker {
   /// @brief The symbol table
   SymbolTable symbol_table;
 
-  // If you want to store "current function return type" etc., 
-  // you can add members here:
+  // to store current function return type
   TypePtr current_func_return_type;
 
 

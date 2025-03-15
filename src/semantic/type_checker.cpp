@@ -150,7 +150,7 @@ TypePtr TypeChecker::checkFuncDef(AST::FuncDefPtr node) {
   symbol_table.exit_scope();
 
   // revert current function return type
-  // current_func_return_type = nullptr;
+  current_func_return_type = nullptr;
 // #warning Not implemented: TypeChecker::checkFuncDef
   return nullptr;
 }
@@ -357,7 +357,7 @@ TypePtr TypeChecker::checkReturnStmt(AST::ReturnStmtPtr node) {
   } else {
     retType = PrimitiveType::Void;
   }
-  // UNdone: check return type
+  // done: check return type
   if (!current_func_return_type->equals(retType)) {
     std::cerr << "Error: return type mismatch at line " << node->lineno << std::endl;
     exit(1);
