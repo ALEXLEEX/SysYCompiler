@@ -14,6 +14,9 @@ class TypeChecker {
  public:
   TypeChecker();
 
+  // 只允许外部调用 check 方法
+  // check 方法会根据 AST 的根节点类型调用对应的 check 方法
+  // 从而递归地对 AST 进行类型检查
   TypePtr check(AST::NodePtr node);
 
  private:
@@ -22,7 +25,7 @@ class TypeChecker {
 
   // If you want to store "current function return type" etc., 
   // you can add members here:
-  TypePtr current_func_return_type; 
+  TypePtr current_func_return_type;
 
 
   TypePtr checkIntConst(AST::IntConstPtr node);
@@ -37,6 +40,14 @@ class TypeChecker {
   TypePtr checkIfStmt(AST::IfStmtPtr node);
   TypePtr checkWhileStmt(AST::WhileStmtPtr node);
   TypePtr checkExpStmt(AST::ExpStmtPtr node);
+  TypePtr checkPrimaryExp(AST::PrimaryExpPtr node);
+  TypePtr checkInitVal(AST::InitValPtr node, const TypePtr& target_type);
+  void doCheckArrayInit(
+    const std::vector<AST::InitValPtr> & sublist, 
+    const std::shared_ptr<ArrayType> & arrType,
+    /* track how many elements we have filled? */ 
+    int lineno
+  );
   //
   TypePtr checkVarDef(AST::VarDefPtr node, BasicType var_type);
   TypePtr checkVarDecl(AST::VarDeclPtr node);

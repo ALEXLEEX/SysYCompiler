@@ -300,6 +300,7 @@ class Param : public Node {
   std::string ident;
   // 扩展支持数组维度
   std::vector<int> dims;
+  BasicType btype = BasicType::Int;
   Param(const char *ident) : ident(ident) {}
   Param(const char *ident, int dim) : ident(ident) {
     // 第一维度肯定是 [ ] 空 所以我们直接 push 一个-1

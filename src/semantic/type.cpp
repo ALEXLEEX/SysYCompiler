@@ -21,7 +21,13 @@ bool ArrayType::equals(const TypePtr& other) const {
       dims.size() != other_type->dims.size()) {
     return false;
   }
+  std::cerr << other_type->dims.size() << "vs" << dims.size() << std::endl;
+  std::cerr << other_type->to_string() << "vs" << to_string() << std::endl;
   for (size_t i = 0; i < dims.size(); i++) {
+    if (other_type->dims[i] == -1 && dims[i] != other_type->dims[i]) {
+      continue;      
+    }
+    std::cerr << "heer" << std::endl;
     if (dims[i] != other_type->dims[i]) {
       return false;
     }

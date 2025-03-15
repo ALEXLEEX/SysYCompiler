@@ -18,7 +18,14 @@ class Symbol {
   std::string unique_name;
   /// @brief The type of the symbol
   TypePtr type;
-#warning Symbol: need to add a member variable to store the symbol's scope
+// #warning Symbol: need to add a member variable to store the symbol's scope
+  // scope_index stores the index of the scope where the symbol is defined
+  // 0 is the global scope
+  // -1 means the symbol is not defined
+  // other positive integers represent the index of the scope in scope_vector
+  // the index of the current scope is scope_vector.size() - 1
+  int scope_index = -1;
+  // bool is_initialized = false;
   Symbol(std::string name, TypePtr type) : name(name), type(type) {}
   static SymbolPtr create(std::string name, TypePtr type) {
     return std::make_shared<Symbol>(name, type);

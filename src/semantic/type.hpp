@@ -42,7 +42,7 @@ class PrimitiveType : public Type {
   static const TypePtr Void;
 };
 
-// 不懂1 这里是什么意思没太看懂
+// 不懂1 这里是什么意思没太看懂 就是可以直接通过类名调用 不用每次都create::(BasicType::Int)这样了
 // 为了方便使用，我们在 PrimitiveType 类中定义了两个静态成员变量 Int 和 Void，分别表示整型和空类型。
 inline const TypePtr PrimitiveType::Int = PrimitiveType::create(BasicType::Int);
 inline const TypePtr PrimitiveType::Void = PrimitiveType::create(BasicType::Void);
@@ -51,9 +51,11 @@ class ArrayType;
 using ArrayTypePtr = std::shared_ptr<ArrayType>;
 class ArrayType : public Type {
  public:
+  // 现在element_type只可能是int类型 但是这里放一个指针是为了以后方便扩展
   TypePtr element_type;
   std::vector<int> dims;
 
+  ArrayType() = default;
   ArrayType(TypePtr element_type, std::vector<int> dims)
       : element_type(element_type), dims(dims) {
     ASSERT(dims.size() > 0, "Array dimension should be greater than 0");
@@ -62,7 +64,7 @@ class ArrayType : public Type {
   static ArrayTypePtr create(TypePtr element_type, std::vector<int> dims) {
     return std::make_shared<ArrayType>(element_type, dims);
   }
-  // TODO
+
   bool equals(const TypePtr& other) const override;
 
   std::string to_string() const override {
@@ -87,6 +89,7 @@ class FuncType : public Type {
   TypePtr return_type;
   std::vector<TypePtr> param_types;
 
+  FuncType() = default;
   FuncType(TypePtr return_type, std::vector<TypePtr> param_types)
       : return_type(return_type), param_types(param_types) {}
 
