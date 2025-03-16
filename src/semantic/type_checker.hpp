@@ -44,7 +44,7 @@ class TypeChecker {
   void doCheckArrayInit(
     const std::vector<AST::InitValPtr> & sublist, 
     const std::shared_ptr<ArrayType> & arrType,
-    /* track how many elements we have filled? */ 
+    int initializedCount,
     int lineno
   );
   //

@@ -212,18 +212,22 @@ TypePtr TypeChecker::checkVarDef(AST::VarDefPtr node, BasicType var_type) {
 void TypeChecker::doCheckArrayInit(
   const std::vector<AST::InitValPtr> & sublist, 
   const std::shared_ptr<ArrayType> & arrType,
-  /* track how many elements we have filled? */ 
+  int initializedCount,
   int lineno
 ) {
-    // e.g. total = product of arrType->dims
+    // total = product of arrType->dims 待初始化的元素总数
     int totalCount = 1;
     for (auto d : arrType->dims) totalCount *= d;
+    
+    std::cerr << "待初始化的元素总数: " << totalCount << std::endl;
 
     int filledCount = 0; 
-    // iterate over sublist
+    // iterate over sublist { initVal, InitVal, ... }
     for (auto child : sublist) {
       auto initv = std::dynamic_pointer_cast<AST::InitVal>(child);
-      if (!(initv->kind == AST::InitVal::Kind::EXP)) {
+      if (initv->kind == AST::InitVal::Kind::EXP) {
+        // { InitVal, Exp, InitVal, ... }
+        //             ^ 到这里了
         // scalar => fill 1 element
         TypePtr t = check(initv->expr);
         // must match arrType->element_type if it's 1-d array,
@@ -241,17 +245,42 @@ void TypeChecker::doCheckArrayInit(
           exit(1);
         }
       } else {
-        // it's a { ... } => we can interpret as sub array
+        //  { InitVal, { ... } , ... } => we can interpret as sub array
         // dimension - 1
         if (arrType->dims.size() < 2) {
           // means we can't go deeper
           std::cerr << "Error: nested { } but no deeper array dimension left" << std::endl;
           exit(1);
         }
+        // 首先应该用已填充元素数去整除 dims 的维度 找到最大的可初始化数组大小
+        // 例如: int a[2][3][4] = { { {1,2,3,4}, {5,6,7,8} } }
+        // 假如已经处理完 {1,2,3,4} 下一个到 {5,6,7,8} 那么 filledCount = 4
+        // 现在用 filledCount = 4 去整除 dims[2] = 4 
+        // filledCount % dims[2] == 0 but filledCount % (dims[1] * dims[2]) != 0
+        // 所以我们要新创建一个数组类型 subArr[4] 去处理 {5,6,7,8}
+        int i = 0;
+        int temp = 1;
+        
+        for (i = arrType->dims.size()-1; i >= 1; i--) {
+          temp *= arrType->dims[i];
+          // std::cerr << "temp = " << temp << " i = " << i << std::endl;
+          // std::cerr << "filledCount = " << filledCount << std::endl;
+          if (filledCount % temp != 0) {
+            break;
+          }
+        }
+        i++;
+        std::cerr << "最终 i = " << i << std::endl;
+
         // build a sub array type
         auto subArr = std::make_shared<ArrayType>();
         subArr->element_type = arrType->element_type;
-        subArr->dims.assign(arrType->dims.begin()+1, arrType->dims.end());
+        // subArr->dims.assign(arrType->dims.begin()+1, arrType->dims.end());
+
+        for (std::vector<int>::size_type j = i; j < arrType->dims.size(); j++) {
+          subArr->dims.push_back(arrType->dims[j]);
+          std::cerr << "subArr->dims[" << j << "] = " << arrType->dims[j] << std::endl;
+        }
 
         int subTotal = 1;
         for (auto d : subArr->dims) subTotal *= d;
@@ -260,7 +289,7 @@ void TypeChecker::doCheckArrayInit(
         // fill up to subTotal elements
         // we can do something like:
         auto & subSubs = initv->subInitVals;
-        doCheckArrayInit(subSubs, subArr, lineno);
+        doCheckArrayInit(subSubs, subArr, 0, lineno);
 
         // that function might fill subTotal if subSubs not enough => implicit 0
         filledCount += subTotal; 
@@ -270,15 +299,16 @@ void TypeChecker::doCheckArrayInit(
         }
       }
     }
-
     // if filledCount < totalCount => implicit fill 0
+    if (filledCount < totalCount) {
+      std::cerr << "Warning: implicit 0 fill at line " << lineno << std::endl;
+    }
+    return;
 }
 
-
-
 TypePtr TypeChecker::checkInitVal(AST::InitValPtr node, const TypePtr &target_type) {
-  // 你需要判断初始化表达式的类型是否和变量类型相同
-  // 如果是数组，你还需要检查初始化表达式和数组的维度是否匹配，是否有溢出的情况
+  // 思路：需要判断初始化表达式的类型是否和变量类型相同
+  // 如果是数组，还需要检查初始化表达式和数组的维度是否匹配，是否有溢出的情况
   // 思路：先判断 target_type 是否是什么类型
   // 如果是 EXP 就 check Exp 类型即可
   if (node->kind == AST::InitVal::Kind::EXP) {
@@ -288,13 +318,12 @@ TypePtr TypeChecker::checkInitVal(AST::InitValPtr node, const TypePtr &target_ty
         std::cerr << "Error: initVal type mismatch at line " << node->lineno << std::endl;
         exit(1);
     }
-    // 返回 target_type, 仅表示本 initVal 的“整体类型”
+    // 返回 target_type, 仅表示 initVal 是单纯 int 类型
     return target_type;
   } else {
-    // is_brace==true => { ... }
+    // kind == Kind::BRCAE => { ... }
     // 1) 如果 target_type是 array => 继续深层次初始化
-    // 2) 如果 target_type是 int => 这里是 "int x = { ... }"
-    //    => 这种写法 => either treat as "int x=1" or if empty => fill 0 ?
+    // 2) 如果 target_type是 int => 不能用花括号初始化
 
     auto arrType = std::dynamic_pointer_cast<ArrayType>(target_type);
     if (!arrType) {
@@ -303,11 +332,13 @@ TypePtr TypeChecker::checkInitVal(AST::InitValPtr node, const TypePtr &target_ty
       exit(1);
     }
     // target_type is array => do c-like array initialization 
-    // let’s define a helper that does the actual recursion and indexing
-    // e.g. fill array of size= product of dims
+    // define a helper that does the actual recursion and indexing
+    // e.g. fill array of size = product of dims
     // we can parse node->sub_initvals one by one or nested
 
-    doCheckArrayInit(node->subInitVals, arrType, node->lineno);
+    doCheckArrayInit(node->subInitVals, arrType, 0, node->lineno);
+    // 如果函数内部没有报错，说明初始化表达式和数组的维度是否匹配
+    // 返回 target_type, 表示 initVal 是数组类型并且维度匹配
     return arrType;
   }
 }
@@ -347,21 +378,33 @@ TypePtr TypeChecker::checkAssignStmt(AST::AssignStmtPtr node) {
 }
 
 TypePtr TypeChecker::checkReturnStmt(AST::ReturnStmtPtr node) {
-  TypePtr expr_type = check(node->exp);
+  // TypePtr expr_type = check(node->exp);
   // 判断返回值类型是否和函数声明的返回值类型相同
   // 思路：如果函数声明的返回值类型是 void，那么返回值应该为空
   // 如果函数声明的返回值类型是 int，那么返回值应该是 int
-  TypePtr retType;
-  if (expr_type) {
-    retType = expr_type;
+  if (node->exp == nullptr) {
+    if (!is_void(current_func_return_type)) {
+      std::cerr << "Error: return type mismatch at line " << node->lineno << std::endl;
+      exit(1);
+    }
   } else {
-    retType = PrimitiveType::Void;
+    TypePtr expr_type = check(node->exp);
+    if (!current_func_return_type->equals(expr_type)) {
+      std::cerr << "Error: return type mismatch at line " << node->lineno << std::endl;
+      exit(1);
+    }
   }
-  // done: check return type
-  if (!current_func_return_type->equals(retType)) {
-    std::cerr << "Error: return type mismatch at line " << node->lineno << std::endl;
-    exit(1);
-  }
+  // TypePtr retType;
+  // if (expr_type) {
+  //   retType = expr_type;
+  // } else {
+  //   retType = PrimitiveType::Void;
+  // }
+  // // done: check return type
+  // if (!current_func_return_type->equals(retType)) {
+  //   std::cerr << "Error: return type mismatch at line " << node->lineno << std::endl;
+  //   exit(1);
+  // }
 // #warning Not implemented: TypeChecker::checkReturnStmt
   return nullptr;
 }
