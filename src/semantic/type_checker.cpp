@@ -81,7 +81,6 @@ TypePtr TypeChecker::checkFuncDef(AST::FuncDefPtr node) {
   // 设置函数返回值类型
   // 利用 PrimitiveType 已经创建好的静态成员变量
   // 可以直接使用 PrimitiveType::Int 或 PrimitiveType::Void
-
   if (bty == BasicType::Int) {
     funcType->return_type = PrimitiveType::Int;
   } else if (bty == BasicType::Void) {
@@ -92,6 +91,7 @@ TypePtr TypeChecker::checkFuncDef(AST::FuncDefPtr node) {
   }
 
   // 不需要再单独进入ParamPtr进行检查 直接在这里检查完
+  // 所以没有实现checkParam
   std::vector<TypePtr> param_types;
   for (auto &param : node->params) {
     // 如果是整数类型 直接加入
@@ -105,7 +105,6 @@ TypePtr TypeChecker::checkFuncDef(AST::FuncDefPtr node) {
       std::cerr << "Error: unknown param type at line " << node->lineno << std::endl;
       exit(1);
     }
-    // node->symbol = symbol_table.add_symbol(param->ident, param->btype);
   }
   funcType->param_types = param_types;
 
@@ -125,6 +124,7 @@ TypePtr TypeChecker::checkFuncDef(AST::FuncDefPtr node) {
   current_func_return_type = funcType->return_type;
 
   // enter scope
+  // 相当于进入函数作用域 参数也是函数的内部变量 所以参数也要加入到新的scope中
   symbol_table.enter_scope();
 
   // insert params
@@ -173,7 +173,6 @@ TypePtr TypeChecker::checkVarDef(AST::VarDefPtr node, BasicType var_type) {
   // 然后根据变量类型设置Type对象的element_type和dims
   // 最后将Type对象插入符号表，并将符号表中的 symbol 挂到 VarDef 节点上
   // 如果有初始化表达式，还需要检查初始化表达式的类型是否和变量类型相同
-  
   TypePtr type;
   if (node->dims.empty()) {
     type = PrimitiveType::create(var_type);
@@ -203,24 +202,14 @@ TypePtr TypeChecker::checkVarDef(AST::VarDefPtr node, BasicType var_type) {
   // 将符号表中的 symbol 挂到 VarDef 节点上
   node->symbol = sym;
 // #warning Not implemented: TypeChecker::checkVarDef
-
-  // 将变量插入符号表，并将符号表中的 symbol 挂到 VarDef 节点上
-  // node->symbol = symbol_table.add_symbol(node->ident, type);
   return nullptr;
 }
 
-void TypeChecker::doCheckArrayInit(
-  const std::vector<AST::InitValPtr> & sublist, 
-  const std::shared_ptr<ArrayType> & arrType,
-  int initializedCount,
-  int lineno
-) {
+void TypeChecker::doCheckArrayInit(const std::vector<AST::InitValPtr> & sublist, const std::shared_ptr<ArrayType> & arrType, int lineno) {
     // total = product of arrType->dims 待初始化的元素总数
     int totalCount = 1;
     for (auto d : arrType->dims) totalCount *= d;
     
-    std::cerr << "待初始化的元素总数: " << totalCount << std::endl;
-
     int filledCount = 0; 
     // iterate over sublist { initVal, InitVal, ... }
     for (auto child : sublist) {
@@ -270,16 +259,14 @@ void TypeChecker::doCheckArrayInit(
           }
         }
         i++;
-        std::cerr << "最终 i = " << i << std::endl;
 
         // build a sub array type
         auto subArr = std::make_shared<ArrayType>();
         subArr->element_type = arrType->element_type;
+        
         // subArr->dims.assign(arrType->dims.begin()+1, arrType->dims.end());
-
         for (std::vector<int>::size_type j = i; j < arrType->dims.size(); j++) {
           subArr->dims.push_back(arrType->dims[j]);
-          std::cerr << "subArr->dims[" << j << "] = " << arrType->dims[j] << std::endl;
         }
 
         int subTotal = 1;
@@ -289,7 +276,7 @@ void TypeChecker::doCheckArrayInit(
         // fill up to subTotal elements
         // we can do something like:
         auto & subSubs = initv->subInitVals;
-        doCheckArrayInit(subSubs, subArr, 0, lineno);
+        doCheckArrayInit(subSubs, subArr, lineno);
 
         // that function might fill subTotal if subSubs not enough => implicit 0
         filledCount += subTotal; 
@@ -300,9 +287,9 @@ void TypeChecker::doCheckArrayInit(
       }
     }
     // if filledCount < totalCount => implicit fill 0
-    if (filledCount < totalCount) {
-      std::cerr << "Warning: implicit 0 fill at line " << lineno << std::endl;
-    }
+    // if (filledCount < totalCount) {
+    //   std::cerr << "Warning: implicit 0 fill at line " << lineno << std::endl;
+    // }
     return;
 }
 
@@ -322,21 +309,19 @@ TypePtr TypeChecker::checkInitVal(AST::InitValPtr node, const TypePtr &target_ty
     return target_type;
   } else {
     // kind == Kind::BRCAE => { ... }
-    // 1) 如果 target_type是 array => 继续深层次初始化
-    // 2) 如果 target_type是 int => 不能用花括号初始化
+    // 如果 target_type是 array => 继续深层次初始化
+    // 如果 target_type是 int => 不能用花括号初始化
 
     auto arrType = std::dynamic_pointer_cast<ArrayType>(target_type);
     if (!arrType) {
       // 直接报错 不应该出现对非数组但是用花括号初始化的情况
-      std::cerr << "Error: initVal type mismatch at line " << node->lineno << std::endl;
+      std::cerr << "Error: initVal type {} mismatch sclar at line " << node->lineno << std::endl;
       exit(1);
     }
     // target_type is array => do c-like array initialization 
     // define a helper that does the actual recursion and indexing
-    // e.g. fill array of size = product of dims
-    // we can parse node->sub_initvals one by one or nested
 
-    doCheckArrayInit(node->subInitVals, arrType, 0, node->lineno);
+    doCheckArrayInit(node->subInitVals, arrType, node->lineno);
     // 如果函数内部没有报错，说明初始化表达式和数组的维度是否匹配
     // 返回 target_type, 表示 initVal 是数组类型并且维度匹配
     return arrType;
@@ -394,23 +379,13 @@ TypePtr TypeChecker::checkReturnStmt(AST::ReturnStmtPtr node) {
       exit(1);
     }
   }
-  // TypePtr retType;
-  // if (expr_type) {
-  //   retType = expr_type;
-  // } else {
-  //   retType = PrimitiveType::Void;
-  // }
-  // // done: check return type
-  // if (!current_func_return_type->equals(retType)) {
-  //   std::cerr << "Error: return type mismatch at line " << node->lineno << std::endl;
-  //   exit(1);
-  // }
 // #warning Not implemented: TypeChecker::checkReturnStmt
   return nullptr;
 }
 
 // added
 TypePtr TypeChecker::checkIfStmt(AST::IfStmtPtr node) {
+  // 控制流语句的条件表达式必须是整形表达式
   TypePtr cond_type = check(node->condition);
   if (!is_int(cond_type)) {
     std::cerr << "Error: if condition type mismatch at line " << node->lineno << std::endl;
@@ -424,6 +399,7 @@ TypePtr TypeChecker::checkIfStmt(AST::IfStmtPtr node) {
 }
 
 TypePtr TypeChecker::checkWhileStmt(AST::WhileStmtPtr node) {
+  // 控制流语句的条件表达式必须是整形表达式
   TypePtr cond_type = check(node->condition);
   if (!is_int(cond_type)) {
     std::cerr << "Error: while condition type mismatch at line " << node->lineno << std::endl;
@@ -503,7 +479,6 @@ TypePtr TypeChecker::checkLVal(AST::LValPtr node) {
     newArr->dims.assign(arrT->dims.begin() + node->dims.size(), arrT->dims.end());
     return newArr;
   }
-
 // #warning Not implemented: TypeChecker::checkLVal
   // 你需要返回 LVal 的类型
   // return nullptr;
@@ -546,25 +521,19 @@ TypePtr TypeChecker::checkFuncCall(AST::FuncCallPtr node) {
   // check each param type
   for (size_t i=0; i<node->args.size(); i++) {
     auto argT = check(node->args[i]);
-    // std::cerr << node->args[i]->to_string() << std::endl;
-    // std::cerr << argT->to_string() << " vs " << ftype->param_types[i]->to_string() << std::endl;
     auto paramT = ftype->param_types[i];
     if (!argT->equals(paramT)) {
       std::cerr << "Error: function param type mismatch for " 
         << node->name << " param index " << i 
         << " at line " << node->lineno << std::endl;
-
-      std::cerr << paramT->to_string() << " vs " << argT->to_string() << std::endl;
       exit(1);
     }
   }
   // function call expression type is the function's return type
   return ftype->return_type;
-
-
 // #warning Not implemented: TypeChecker::checkFuncCall
   // 你需要返回函数调用表达式的类型
-  return nullptr;
+  // return nullptr;
 }
 
 TypePtr TypeChecker::checkUnaryExp(AST::UnaryExpPtr node) {

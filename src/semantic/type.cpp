@@ -13,7 +13,6 @@ bool PrimitiveType::equals(const TypePtr& other) const {
 bool ArrayType::equals(const TypePtr& other) const {
   // 判断两个数组类型是否相等
   // tips: 先判断 other 是否是 ArrayType，然后逐个比较 element_type 和 dims
-  // 不懂2 这里是指传参的时候省略第 0 维吗
   // tips: 对于 dims，或许可以忽略第 0 维
   // 第 0 维用 -1 表示空
   auto other_type = std::dynamic_pointer_cast<ArrayType>(other);
@@ -21,9 +20,7 @@ bool ArrayType::equals(const TypePtr& other) const {
       dims.size() != other_type->dims.size()) {
     return false;
   }
-  // debug
-  // std::cerr << other_type->dims.size() << "vs" << dims.size() << std::endl;
-  // std::cerr << other_type->to_string() << "vs" << to_string() << std::endl;
+  
   for (size_t i = 0; i < dims.size(); i++) {
     if (other_type->dims[i] == -1 && dims[i] != other_type->dims[i]) {
       continue;      

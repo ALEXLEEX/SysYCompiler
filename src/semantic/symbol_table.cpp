@@ -8,7 +8,7 @@ SymbolPtr SymbolTable::add_symbol(std::string name, TypePtr type) {
   // 最后，如果插入成功，返回新的符号
   // 如果符号已经存在，返回 nullptr
 
-  // 不懂3 这里似乎存在一个问题 如果传进来的名字一样 但一个是array一个是Func怎么办
+  // 这里存在一个问题 如果传进来的名字一样 但一个是array一个是Func怎么办 答案是不允许这样的情况出现
   ASSERT(!scope_stack.empty(), "SymbolTable: no scope is available in add_symbol"); // 断言：作用域栈不为空
   auto &current_scope = scope_stack.back(); // 获取当前作用域
   if (current_scope.find(name) != current_scope.end()) { // 如果当前作用域中已经存在该符号

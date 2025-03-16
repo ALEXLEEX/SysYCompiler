@@ -42,7 +42,7 @@ class PrimitiveType : public Type {
   static const TypePtr Void;
 };
 
-// 不懂1 这里是什么意思没太看懂 就是可以直接通过类名调用 不用每次都create::(BasicType::Int)这样了
+// 就是可以直接通过类名调用 不用每次都create::(BasicType::Int)这样了
 // 为了方便使用，我们在 PrimitiveType 类中定义了两个静态成员变量 Int 和 Void，分别表示整型和空类型。
 inline const TypePtr PrimitiveType::Int = PrimitiveType::create(BasicType::Int);
 inline const TypePtr PrimitiveType::Void = PrimitiveType::create(BasicType::Void);

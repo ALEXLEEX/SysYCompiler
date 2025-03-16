@@ -25,7 +25,6 @@ class Symbol {
   // other positive integers represent the index of the scope in scope_vector
   // the index of the current scope is scope_vector.size() - 1
   int scope_index = -1;
-  // bool is_initialized = false;
   Symbol(std::string name, TypePtr type) : name(name), type(type) {}
   static SymbolPtr create(std::string name, TypePtr type) {
     return std::make_shared<Symbol>(name, type);
