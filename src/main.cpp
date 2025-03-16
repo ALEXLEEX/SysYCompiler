@@ -4,7 +4,9 @@
 #include <stdexcept>
 #include <string>
 
+#include "analysis/cfg_builder.hpp"
 #include "ast/tree.hpp"
+#include "ir/ir_translator.hpp"
 #include "semantic/type_checker.hpp"
 
 extern int yydebug;  // 0: disable debug mode, 1: enable debug mode
@@ -71,12 +73,35 @@ int main(int argc, char **argv) {
     fclose(yyin);
 
     if (root) {
+      std::ofstream output_file;
+      if (!args.output_file.empty()) {
+        output_file.open(args.output_file);
+        if (!output_file.is_open()) {
+          throw std::runtime_error("Cannot open output file: " +
+                                   args.output_file);
+        }
+      }
+      std::ostream &output = args.output_file.empty() ? std::cout : output_file;
+
       root->print_tree();
       std::cout << "Parse succeeded" << std::endl;
 
       auto type_checker = TypeChecker();
       type_checker.check(root);
       std::cout << "Semantic check passed" << std::endl;
+
+      auto ir_translator = IRTranslator();
+      auto ir = ir_translator.translate(root);
+      std::cout << "IR generated" << std::endl;
+
+      auto cfg_builder = CFGBuilder();
+      auto mod = cfg_builder.build(ir);
+      std::cout << "Control flow graph generated" << std::endl;
+
+      if (args.output_ir) {
+        output << mod.get_ir();
+        return 0;
+      }
     }
 
     return 0;
