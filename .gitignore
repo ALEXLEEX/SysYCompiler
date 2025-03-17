@@ -50,3 +50,6 @@ compiler
 
 # CLion
 .idea/
+
+# debug
+debug/
