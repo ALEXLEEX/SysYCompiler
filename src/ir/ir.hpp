@@ -5,11 +5,14 @@
 #include <list>
 #include <memory>
 #include <string>
+#include <sstream>
 
 #include "common.hpp"
 
+// 这是在IR命名空间下的Node类 和AST::Node类不同
 namespace IR {
 
+// Node 是抽象语法树所有节点的基类
 class Node;
 using NodePtr = std::shared_ptr<Node>;
 class Node {
@@ -29,7 +32,7 @@ class LoadImm : public Node {
   static LoadImmPtr create(const std::string &x, int k) {
     return std::make_shared<LoadImm>(x, k);
   }
-
+  // "x = #k"
   std::string to_string() const override {
     return x + " = #" + std::to_string(k);
   }
@@ -46,7 +49,7 @@ class Assign : public Node {
   static AssignPtr create(const std::string &x, const std::string &y) {
     return std::make_shared<Assign>(x, y);
   }
-
+  // "x = y"
   std::string to_string() const override { return x + " = " + y; }
 };
 
@@ -67,7 +70,7 @@ class Binary : public Node {
                           const BinaryOp &op, const std::string &z) {
     return std::make_shared<Binary>(x, y, op, z);
   }
-
+  // "x = y op z"
   std::string to_string() const override {
     return x + " = " + y + " " + op_to_string(op) + " " + z;
   }
@@ -88,7 +91,7 @@ class Unary : public Node {
                          const std::string &y) {
     return std::make_shared<Unary>(x, op, y);
   }
-
+  // "x = op y"
   std::string to_string() const override {
     return x + " = " + op_to_string(op) + " " + y;
   }
@@ -120,7 +123,7 @@ class Goto : public Node {
   static GotoPtr create(const std::string &label) {
     return std::make_shared<Goto>(label);
   }
-
+  // "GOTO label"
   std::string to_string() const override { return "GOTO " + label; }
 };
 
@@ -135,7 +138,7 @@ class Function : public Node {
   static FunctionPtr create(const std::string &func) {
     return std::make_shared<Function>(func);
   }
-
+  // "FUNCTION name:"
   std::string to_string() const override { return "FUNCTION " + name + ":"; }
 };
 
@@ -155,7 +158,7 @@ class Call : public Node {
   static CallPtr create(const std::string &x, const std::string &func) {
     return std::make_shared<Call>(x, func);
   }
-
+  // "x = CALL func" 或者 "CALL func"
   std::string to_string() const override {
     if (x.empty()) {
       return "CALL " + func;
@@ -178,7 +181,7 @@ class Arg : public Node {
   static ArgPtr create(const std::string &x, const std::string &func, int k) {
     return std::make_shared<Arg>(x, func, k);
   }
-
+  // "ARG x"
   std::string to_string() const override { return "ARG " + x; }
 };
 
@@ -193,7 +196,7 @@ class Return : public Node {
   static ReturnPtr create(const std::string &x = "") {
     return std::make_shared<Return>(x);
   }
-
+  // "RETURN x" 或者 "RETURN"
   std::string to_string() const override {
     if (x.empty()) {
       return "RETURN";
@@ -202,7 +205,172 @@ class Return : public Node {
   }
 };
 
-#warning Some instructions are not implemented yet
+// #warning Some instructions are not implemented yet
+class If;
+using IfPtr = std::shared_ptr<If>;
+class If : public Node {
+ public:
+ std::string left, right, op, label;
+ If(const std::string &l, const std::string &op_, 
+    const std::string &r, const std::string &lbl)
+   : left(l), right(r), op(op_), label(lbl) {}
+ static std::shared_ptr<If> create(
+     const std::string &l, const std::string &op_,
+     const std::string &r, const std::string &lbl)
+ {
+   return std::make_shared<If>(l, op_, r, lbl);
+ }
+ std::string to_string() const override {
+   // "IF left op right GOTO label"
+   return "IF " + left + " " + op + " " + right + " GOTO " + label;
+ }
+};
+
+class Param;
+using ParamPtr = std::shared_ptr<Param>;
+class Param : public Node {
+  public:
+    std::string x;
+    Param(const std::string &xx) : x(xx) {}
+    static std::shared_ptr<Param> create(const std::string &xx) {
+      return std::make_shared<Param>(xx);
+    }
+    // "PARAM x"
+    std::string to_string() const override {
+      return "PARAM " + x;
+    }
+  };
+
+// 工具函数，用于把 #k (常量) 格式化
+inline std::string imm_str(int k) {
+  return "#" + std::to_string(k);
+}
+
+class Dec;
+using DecPtr = std::shared_ptr<Dec>;
+class Dec : public Node {
+  public:
+    std::string x;
+    int size;
+    Dec(const std::string &xx, int s) : x(xx), size(s) {}
+    static std::shared_ptr<Dec> create(const std::string &xx, int s) {
+      return std::make_shared<Dec>(xx, s);
+    }
+    std::string to_string() const override {
+      // "DEC x #size"
+      return "DEC " + x + " " + imm_str(size);
+    }
+  };
+
+class Global;
+using GlobalPtr = std::shared_ptr<Global>;
+class Global : public Node {
+  public:
+    std::string name;
+    int bytes;
+    // 可能有整型初始值
+    std::vector<int> init_vals; // optional
+    
+    Global(const std::string &n, int b, const std::vector<int> &ivs)
+      : name(n), bytes(b), init_vals(ivs) {}
+    static std::shared_ptr<Global> create(const std::string &n, int b, const std::vector<int> &ivs) {
+      return std::make_shared<Global>(n, b, ivs);
+    }
+    std::string to_string() const override {
+      // "GLOBAL name: #bytes = #v1, #v2, ..."
+      // or "GLOBAL name: #bytes"
+      std::ostringstream oss;
+      oss << "GLOBAL " << name << ": " << imm_str(bytes);
+      if(!init_vals.empty()) {
+        oss << " = ";
+        for(size_t i=0; i<init_vals.size(); i++){
+          if(i>0) oss << ", ";
+          oss << imm_str(init_vals[i]);
+        }
+      }
+      return oss.str();
+    }
+  };
+
+// 将全局变量 label 的地址存放到 x 中
+class AddressOf;
+using AddressOfPtr = std::shared_ptr<AddressOf>;
+class AddressOf : public Node {
+  public:
+    std::string dst, label;
+    AddressOf(const std::string &d, const std::string &lbl)
+      : dst(d), label(lbl) {}
+    static std::shared_ptr<AddressOf> create(const std::string &d, const std::string &lbl){
+      return std::make_shared<AddressOf>(d,lbl);
+    }
+    std::string to_string() const override {
+      // "x = &label"
+      return dst + " = &" + label;
+    }
+  };
+
+//    *x = y
+//    x = *y
+// or offset version:  *(x + #k) = y
+//    x = *(y + #k)
+
+// store => "*x = y" or "(x + #k) = y"
+class Store;
+using StorePtr = std::shared_ptr<Store>;
+class Store : public Node {
+  public:
+    std::string addr, src;
+    bool has_offset;
+    int offset;
+    // e.g. if has_offset==true => interpret as *(addr + #offset) = src
+    Store(const std::string &a, const std::string &s)
+      : addr(a), src(s), has_offset(false), offset(0) {}
+    Store(const std::string &a, int off, const std::string &s)
+      : addr(a), src(s), has_offset(true), offset(off) {}
+    static std::shared_ptr<Store> create(const std::string &a, const std::string &s) {
+      return std::make_shared<Store>(a,s);
+    }
+    static std::shared_ptr<Store> create(const std::string &a, int off, const std::string &s) {
+      return std::make_shared<Store>(a, off, s);
+    }
+    std::string to_string() const override {
+      if(!has_offset) {
+        // "*addr = src"
+        return "*" + addr + " = " + src;
+      } else {
+        // "*(addr + #off) = src"
+        return "*(" + addr + " + " + imm_str(offset) + ") = " + src;
+      }
+    }
+  };
+
+// load => "x = *y" or "x = *(y + #k)"
+class Load;
+using LoadPtr = std::shared_ptr<Load>;
+class Load : public Node {
+  public:
+    std::string dst, addr;
+    bool has_offset;
+    int offset;
+  
+    Load(const std::string &d, const std::string &a)
+      : dst(d), addr(a), has_offset(false), offset(0) {}
+    Load(const std::string &d, const std::string &a, int off)
+      : dst(d), addr(a), has_offset(true), offset(off) {}
+    static std::shared_ptr<Load> create(const std::string &d, const std::string &a) {
+      return std::make_shared<Load>(d,a);
+    }
+    static std::shared_ptr<Load> create(const std::string &d, const std::string &a, int off) {
+      return std::make_shared<Load>(d,a,off);
+    }
+    std::string to_string() const override {
+      if(!has_offset) {
+        return dst + " = *" + addr;
+      } else {
+        return dst + " = *(" + addr + " + " + imm_str(offset) + ")";
+      }
+    }
+  };
 
 using Code = std::list<NodePtr>;
 
