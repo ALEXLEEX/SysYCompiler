@@ -23,6 +23,9 @@ SymbolPtr SymbolTable::add_symbol(std::string name, TypePtr type) {
     symbol->unique_name = name + "_" + std::to_string(local_count++); // 为该标识符重新生成一个唯一名称
   }
   current_scope[name] = symbol; // 将该符号插入到当前作用域
+
+  symbol->scope_index = scope_stack.size() - 1; // 设置符号的作用域索引
+
   return symbol; // 返回新的符号
 // #warning Not implemented: SymbolTable::add_symbol
 }

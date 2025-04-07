@@ -12,7 +12,7 @@
 // 这是在IR命名空间下的Node类 和AST::Node类不同
 namespace IR {
 
-// Node 是抽象语法树所有节点的基类
+// Node 是抽象IR树所有节点的基类
 class Node;
 using NodePtr = std::shared_ptr<Node>;
 class Node {
@@ -314,7 +314,7 @@ class AddressOf : public Node {
 // or offset version:  *(x + #k) = y
 //    x = *(y + #k)
 
-// store => "*x = y" or "(x + #k) = y"
+// store => "*x = y" or "*(x + #k) = y"
 class Store;
 using StorePtr = std::shared_ptr<Store>;
 class Store : public Node {

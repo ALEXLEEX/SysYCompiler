@@ -100,6 +100,7 @@ int main(int argc, char **argv) {
 
       if (args.output_ir) {
         output << mod.get_ir();
+        // output << ir;
         return 0;
       }
     }
