@@ -26,6 +26,7 @@ class IRTranslator {
     const std::vector<int> &dims,
     const std::string &place = "",
     int filledCount = 0);
+  // end added
   
 
  private:
@@ -40,8 +41,9 @@ class IRTranslator {
   // added
   IR::Code translateIfStmt(AST::IfStmtPtr node);
   IR::Code translateWhileStmt(AST::WhileStmtPtr node);
-  // IR::Code translateExpStmt(AST::ExpStmtPtr node);
-  // IR::Code translatePrimaryExp(AST::PrimaryExpPtr node);
+  IR::Code translateExpStmt(AST::ExpStmtPtr node);
+  IR::Code translatePrimaryExp(AST::PrimaryExpPtr node);
+  IR::Code translateParam(AST::ParamPtr node);
   
   IR::Code translateCond(AST::NodePtr cond, const std::string &true_label, const std::string &false_label);
 

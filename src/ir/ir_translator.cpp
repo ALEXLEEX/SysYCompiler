@@ -34,10 +34,11 @@ IR::Code IRTranslator::translate(AST::NodePtr node) {
   TRANSLATE_NODE(IntConst)
 
   // added
-  // TRANSLATE_NODE(IfStmt)
-  // TRANSLATE_NODE(WhileStmt)
-  // TRANSLATE_NODE(ExpStmt)
-  // TRANSLATE_NODE(PrimaryExp)
+  TRANSLATE_NODE(IfStmt)
+  TRANSLATE_NODE(WhileStmt)
+  TRANSLATE_NODE(ExpStmt)
+  TRANSLATE_NODE(PrimaryExp)
+  TRANSLATE_NODE(Param)
   // end added
 // #warning Add more AST node types if needed
 
@@ -78,12 +79,14 @@ IR::Code IRTranslator::translateCompUnit(AST::CompUnitPtr node) {
 
 IR::Code IRTranslator::translateFuncDef(AST::FuncDefPtr node) {
   IR::Code ir;
-  // 1) Insert IR::Function
-  ir.push_back(IR::Function::create(node->name));
+  // 1) Insert IR::Function 都要用唯一名称
+  // ir.push_back(IR::Function::create(node->name));
+  ir.push_back(IR::Function::create(node->symbol->unique_name));
   // 2) If you have function parameters, insert IR::Param for each parameter
   if (node->params.size() > 0) {
     for (auto &param : node->params) {
-      ir.push_back(IR::Param::create(param->ident));
+      // ir.push_back(IR::Param::create(param->ident));
+      ir.push_back(IR::Param::create(param->symbol->unique_name));
     }
   }
   // 3) Translate the function body
@@ -254,7 +257,6 @@ IR::Code IRTranslator::translateVarDef(AST::VarDefPtr node) {
     // global
     if (node->dims.empty()) {
       if (node->initVal) {
-        // 首先用DEC声明全局变量 全局变量的初值一定是INT_CONST
         auto initVal = node->initVal->expr;
         int initVal_value = std::dynamic_pointer_cast<AST::IntConst>(initVal)->value;
         // 这里应该是一个全局变量的赋值
@@ -267,14 +269,25 @@ IR::Code IRTranslator::translateVarDef(AST::VarDefPtr node) {
     } else {
       // 全局数组
       // 这里应该在InitVal把数组初始化值补齐
-      auto initList = fillupGlobalInitList(node->initVal->subInitVals, node->dims);
-      int bytes = 4;
-      for (auto d : node->dims) {
-        bytes *= d;
+      if (node->initVal) {
+        // 全局数组有初值
+        auto initList = fillupGlobalInitList(node->initVal->subInitVals, node->dims);
+        int bytes = 4;
+        for (auto d : node->dims) {
+          bytes *= d;
+        }
+        ir.push_back(IR::Global::create(node->ident, bytes, initList));
+      } else {
+        // 全局数组没有初值 默认值为0 TOOD 这里写的是真的丑 假设没有初值就是设置了 int a[10] = {};
+        node->initVal = std::make_shared<AST::InitVal>();
+        node->initVal->kind = AST::InitVal::Kind::BRACE;
+        auto initList = fillupGlobalInitList(node->initVal->subInitVals, node->dims);
+        int bytes = 4;
+        for (auto d : node->dims) {
+          bytes *= d;
+        }
+        ir.push_back(IR::Global::create(node->ident, bytes, initList));
       }
-      // 这里应该是一个全局数组的列表初始化
-      ir.push_back(IR::Global::create(node->ident, bytes, initList));
-    //   ir.push_back(IR::Global::create(node->ident, node->symbol->type->size * node->dims[0]));
     }
   } else {
     // local
@@ -290,15 +303,22 @@ IR::Code IRTranslator::translateVarDef(AST::VarDefPtr node) {
       } else {
         // 局部变量没有初值 暂不做处理
       }
-    } else {
+    } else if (node->initVal) {
       // 局部数组
-      auto initList = fillupLocalInitList(node->initVal->subInitVals, node->dims, node->symbol->unique_name, 0);
+      IR::Code initList = fillupLocalInitList(node->initVal->subInitVals, node->dims, node->symbol->unique_name, 0);
       int bytes = 4;
       for (auto d : node->dims) {
         bytes *= d;
       }
       ir.push_back(IR::Dec::create(node->symbol->unique_name, bytes));
       std::move(initList.begin(), initList.end(), std::back_inserter(ir));
+    } else {
+      // 局部数组没有初值 暂不做处理
+      int bytes = 4;
+      for (auto d : node->dims) {
+        bytes *= d;
+      }
+      ir.push_back(IR::Dec::create(node->symbol->unique_name, bytes));
     }
   }
 // #warning Not implemented: IRTranslator::translateVarDef
@@ -306,15 +326,71 @@ IR::Code IRTranslator::translateVarDef(AST::VarDefPtr node) {
 }
 
 IR::Code IRTranslator::translateAssignStmt(AST::AssignStmtPtr node) {
+  // 翻译左值和右值
+  // #warning Not implemented: IRTranslator::translateAssignStmt
   IR::Code ir;
   auto lnode = node->lval;
   auto rnode = node->exp;
 
-  // 翻译左值和右值
-  
+  // 1) 生成一个临时变量,用于放右值表达式的结果
+  std::string rtemp = new_temp();
+  // 把右侧表达式翻译到 rtemp
+  IR::Code rc = translateExp(rnode, rtemp);
+  std::move(rc.begin(), rc.end(), std::back_inserter(ir));
+  // 2) 处理左值 lnode
+  //   如果不是数组, dims.size()==0 => 直接 Assign
+  //   如果是数组 => 计算地址 = base + offset, 再 Store
+  auto &indexExps = lnode->dims;  // if it's array, e.g. a[x+1][y]
 
-#warning Not implemented: IRTranslator::translateAssignStmt
+  if (indexExps.empty()) {
+    // not array, just do "baseName = rtemp"
+    ir.push_back( IR::Assign::create(lnode->symbol->unique_name, rtemp));
+  } else {
+    // 2.1) 计算多维下标 => offset
+    // 这里我们简化为 "offset = (ExpIndex1 * stride1 + ExpIndex2 * stride2 + ...) * 4"
+    // 也可能要看 symbol->type->dims to compute each dimension's product
+    // 先假设 1D: a[x], offset = x*4
+    // 对多维: e.g. a[i][j], offset = (i*col + j)*4
+    std::string baseName = new_temp();
+    // 如果是全局数组 要先使用AddressOf获取unique_name
+    if (lnode->symbol->scope_index == 0) {
+      // global baseName = &unique_name
+      ir.push_back(IR::AddressOf::create(baseName, lnode->symbol->unique_name));
+    } else {
+      // local baseName = unique_name
+      ir.push_back(IR::Assign::create(baseName, lnode->symbol->unique_name));
+    }
 
+    SymbolPtr sym = node->lval->symbol;
+    auto arrType = std::dynamic_pointer_cast<ArrayType>(sym->type);
+    std::string idxTemp;  // 临时变量存放下标表达式的值
+    for (std::vector<int>::size_type i = 0; i < indexExps.size(); i++) {
+
+      std::string offsetTemp = new_temp();
+      // offsetTemp = #1 initially 为连乘做准备
+      ir.push_back( IR::LoadImm::create(offsetTemp, 1));
+
+      auto dimExp = indexExps[i];
+      int subArrSize = 1;
+      // 0) calculate subarray size
+      for (std::vector<int>::size_type j = i + 1; j < arrType->dims.size(); j++) {
+        subArrSize *= arrType->dims[j];
+      }
+      // 1) translateExp( dimExp, idxTemp )
+      idxTemp = new_temp();
+      // idxTemp 存放的是下标表达式的值 = dimExp
+      auto exp_ir = translateExp(dimExp, idxTemp);
+      std::move(exp_ir.begin(), exp_ir.end(), std::back_inserter(ir));
+
+      // 2) offsetTemp = offsetTemp + <subDimensionSize> * idxTemp
+      // 子数组大小 * 4 * 偏移量 就是这个维度的偏移量
+      ir.push_back(IR::Binary::create(offsetTemp, idxTemp, BinaryOp::Mul, IR::imm_str(subArrSize * 4)));
+      ir.push_back(IR::Binary::create(baseName, baseName, BinaryOp::Add, offsetTemp));
+    }
+    // 2.2) 现在 offsetTemp 里是字节偏移 且已经加进去了
+    // 做 store: "*( baseName + #offsetTemp ) = rtemp"
+    ir.push_back(IR::Store::create(baseName, rtemp));
+  }
   return ir;
 }
 
@@ -329,8 +405,16 @@ IR::Code IRTranslator::translateReturnStmt(AST::ReturnStmtPtr node) {
   // 否则：
   // return [RETURN];
 
-#warning Not implemented: IRTranslator::translateReturnStmt
-
+  std::string place;
+  if (node->exp) {
+    place = new_temp();
+    auto exp_ir = translateExp(node->exp, place);
+    std::move(exp_ir.begin(), exp_ir.end(), std::back_inserter(ir));
+    ir.push_back(IR::Return::create(place));
+  } else {
+    ir.push_back(IR::Return::create());
+  }
+// #warning Not implemented: IRTranslator::translateReturnStmt
   return ir;
 }
 
@@ -338,11 +422,58 @@ IR::Code IRTranslator::translateLVal(AST::LValPtr node,
                                      const std::string &place) {
   IR::Code ir;
 
-  // 如果 place 不为空，则将 LVal 的值赋给 place
+  // 如果 place 不为空，则将 LVal 的值赋给 place 此时不是真正的左值
   // 如果是数组，你需要特殊考虑
+  if (node->dims.empty()) {
+    // 不是数组，直接赋值
+    if (!place.empty()) {
+      ir.push_back(IR::Assign::create(place, node->symbol->unique_name));
+    }
+  } else {
+    // 是数组，计算地址
+    // 这里需要计算偏移量
+    // 计算方法和上面类似
+    std::string baseName = new_temp();
+    // 如果是全局数组 要先使用AddressOf获取unique_name
+    if (node->symbol->scope_index == 0) {
+      // global baseName = &unique_name
+      ir.push_back(IR::AddressOf::create(baseName, node->symbol->unique_name));
+    } else {
+      // local baseName = unique_name
+      ir.push_back(IR::Assign::create(baseName, node->symbol->unique_name));
+    }
+    SymbolPtr sym = node->symbol;
+    auto arrType = std::dynamic_pointer_cast<ArrayType>(sym->type);
+    std::string idxTemp;  // 临时变量存放下标表达式的值
+    for (std::vector<int>::size_type i = 0; i < node->dims.size(); i++) {
+      std::string offsetTemp = new_temp();
+      // offsetTemp = #1 initially 为连乘做准备
+      ir.push_back( IR::LoadImm::create(offsetTemp, 1));
 
-#warning Not implemented: IRTranslator::translateLVal
+      auto dimExp = node->dims[i];
+      int subArrSize = 1;
+      // 0) calculate subarray size
+      for (std::vector<int>::size_type j = i + 1; j < arrType->dims.size(); j++) {
+        subArrSize *= arrType->dims[j];
+      }
+      // 1) translateExp( dimExp, idxTemp )
+      idxTemp = new_temp();
+      // idxTemp 存放的是下标表达式的值 = dimExp
+      auto exp_ir = translateExp(dimExp, idxTemp);
+      std::move(exp_ir.begin(), exp_ir.end(), std::back_inserter(ir));
 
+      // 2) offsetTemp = offsetTemp + <subDimensionSize> * idxTemp
+      // 子数组大小 * 4 * 偏移量 就是这个维度的偏移量
+      ir.push_back(IR::Binary::create(offsetTemp, idxTemp, BinaryOp::Mul, IR::imm_str(subArrSize * 4)));
+      ir.push_back(IR::Binary::create(baseName, baseName, BinaryOp::Add, offsetTemp));
+    }
+    // 2.2) 现在 offsetTemp 里是字节偏移 且已经加进去了
+    // 做 load: "place = *( baseName + #offsetTemp )"
+    if (!place.empty()) {
+      ir.push_back(IR::Load::create(place, baseName));
+    }
+  }
+// #warning Not implemented: IRTranslator::translateLVal
   return ir;
 }
 
@@ -369,11 +500,32 @@ IR::Code IRTranslator::translateBinaryExp(AST::BinaryExpPtr node,
 IR::Code IRTranslator::translateUnaryExp(AST::UnaryExpPtr node,
                                          const std::string &place) {
   IR::Code ir;
-
   // 翻译子表达式
   // 如果 place 不为空，则将 UnaryExp 的值赋给 place
+  auto temp = new_temp();
+  auto exp_ir = translateExp(node->exp, temp);
+  std::move(exp_ir.begin(), exp_ir.end(), std::back_inserter(ir));
+  // 添加一元运算指令
+  if (!place.empty()) {
+    ir.push_back(IR::Unary::create(place, node->op, temp));
+  }
+// #warning Not implemented: IRTranslator::translateUnaryExp
+  return ir;
+}
 
-#warning Not implemented: IRTranslator::translateUnaryExp
+IR::Code IRTranslator::translateIfStmt(AST::IfStmtPtr node) {
+  IR::Code ir;
+  // 翻译条件表达式
+  // 翻译 if 语句体
+  // 如果有 else 语句，则翻译 else 语句体
+
+  return ir;
+}
+
+IR::Code IRTranslator::translateWhileStmt(AST::WhileStmtPtr node) {
+  IR::Code ir;
+  // 翻译条件表达式
+  // 翻译 while 语句体
 
   return ir;
 }
@@ -399,5 +551,23 @@ IR::Code IRTranslator::translateIntConst(AST::IntConstPtr node,
   if (!place.empty()) {
     ir.push_back(IR::LoadImm::create(place, node->value));
   }
+  return ir;
+}
+
+IR::Code IRTranslator::translateParam(AST::ParamPtr node) {
+  IR::Code ir;
+  return ir;
+}
+
+IR::Code IRTranslator::translateExpStmt(AST::ExpStmtPtr node) {
+  IR::Code ir;
+  return ir;
+}
+
+IR::Code IRTranslator::translatePrimaryExp(AST::PrimaryExpPtr node) {
+  IR::Code ir;
+  // 翻译括号内的表达式
+  auto exp_ir = translateExp(node->exp);
+  std::move(exp_ir.begin(), exp_ir.end(), std::back_inserter(ir));
   return ir;
 }

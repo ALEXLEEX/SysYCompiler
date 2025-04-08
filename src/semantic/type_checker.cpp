@@ -131,10 +131,12 @@ TypePtr TypeChecker::checkFuncDef(AST::FuncDefPtr node) {
   for (auto &param : node->params) {
     // 如果是数组类型 需要加入数组类型
     if (param->btype == BasicType::Int && param->dims.empty()) {
-      symbol_table.add_symbol(param->ident, PrimitiveType::Int);
+      auto sym = symbol_table.add_symbol(param->ident, PrimitiveType::Int);
+      param->symbol = sym;
     } else if (param->btype == BasicType::Int && !param->dims.empty()) {
       // 数组类型
-      symbol_table.add_symbol(param->ident, ArrayType::create(PrimitiveType::Int, param->dims));
+      auto sym = symbol_table.add_symbol(param->ident, ArrayType::create(PrimitiveType::Int, param->dims));
+      param->symbol = sym;
     } else {
       std::cerr << "Error: unknown param type at line " << node->lineno << std::endl;
       exit(1);
