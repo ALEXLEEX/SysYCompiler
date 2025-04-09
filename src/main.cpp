@@ -6,6 +6,9 @@
 
 #include "analysis/cfg_builder.hpp"
 #include "ast/tree.hpp"
+#include "codegen/asm_emitter.hpp"
+#include "codegen/inst_selector.hpp"
+#include "codegen/reg_allocator.hpp"
 #include "ir/ir_translator.hpp"
 #include "semantic/type_checker.hpp"
 
@@ -103,6 +106,18 @@ int main(int argc, char **argv) {
         output << ir;
         return 0;
       }
+
+      auto inst_selector = InstSelector();
+      inst_selector.select(mod);
+      std::cout << "Instruction selection done" << std::endl;
+
+      auto reg_allocator = RegAllocator();
+      reg_allocator.allocate(mod);
+      std::cout << "Register allocation done" << std::endl;
+
+      auto asm_emitter = ASMEmitter(args.use_venus, output);
+      asm_emitter.emit(mod);
+      std::cout << "Assembly generated" << std::endl;
     }
 
     return 0;

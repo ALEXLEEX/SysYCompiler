@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "codegen/asm.hpp"
 #include "ir/ir.hpp"
 
 class BasicBlock;
@@ -14,6 +15,7 @@ class BasicBlock {
  public:
   std::string label;
   IR::Code ir_code;
+  ASM::Code asm_code;
   std::vector<BasicBlockPtr> successors;
   std::vector<BasicBlockPtr> predecessors;
 
@@ -32,6 +34,15 @@ class Function {
   std::string name;
   std::vector<BasicBlockPtr> blocks;
 
+  /// @brief stack size for temporary variables, in bytes
+  int temp_stack_size = 0;
+
+  /// @brief stack size for saved registers, in bytes
+  int reg_stack_size = 0;
+
+  /// @brief map virtual registers to physical registers
+  ASM::RegMap reg_map;
+
   Function(std::string name, std::vector<BasicBlockPtr> blocks = {})
       : name(name), blocks(blocks) {}
 
@@ -39,6 +50,16 @@ class Function {
                             std::vector<BasicBlockPtr> blocks = {}) {
     return std::make_shared<Function>(name, blocks);
   }
+
+  /// @brief allocate space for temporary variables
+  /// @param size size of the variable, in bytes
+  /// @return the offset from sp
+  int alloc_temp(int size = 4);
+
+  /// @brief allocate space for saved registers
+  /// @param size size of the register, in bytes
+  /// @return the offset from fp
+  int alloc_reg(int size = 4);
 };
 
 class Module {
