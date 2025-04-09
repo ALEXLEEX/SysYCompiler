@@ -42,7 +42,7 @@ class IRTranslator {
   IR::Code translateIfStmt(AST::IfStmtPtr node);
   IR::Code translateWhileStmt(AST::WhileStmtPtr node);
   IR::Code translateExpStmt(AST::ExpStmtPtr node);
-  IR::Code translatePrimaryExp(AST::PrimaryExpPtr node);
+  IR::Code translatePrimaryExp(AST::PrimaryExpPtr node, const std::string &place = "");
   IR::Code translateParam(AST::ParamPtr node);
   
   IR::Code translateCond(AST::NodePtr cond, const std::string &true_label, const std::string &false_label);

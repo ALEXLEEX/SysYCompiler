@@ -172,14 +172,18 @@ using ArgPtr = std::shared_ptr<Arg>;
 class Arg : public Node {
  public:
   std::string x;
-  std::string func;
-  int k;
+  // std::string func;
+  // int k;
 
-  Arg(const std::string &x, const std::string &func, int k)
-      : x(x), func(func), k(k) {}
+  // Arg(const std::string &x, const std::string &func, int k)
+  //     : x(x), func(func), k(k) {}
 
-  static ArgPtr create(const std::string &x, const std::string &func, int k) {
-    return std::make_shared<Arg>(x, func, k);
+  // static ArgPtr create(const std::string &x, const std::string &func, int k) {
+  //   return std::make_shared<Arg>(x, func, k);
+  // }
+  Arg(const std::string &x) : x(x) {}
+  static ArgPtr create(const std::string &x) {
+    return std::make_shared<Arg>(x);
   }
   // "ARG x"
   std::string to_string() const override { return "ARG " + x; }
@@ -210,20 +214,22 @@ class If;
 using IfPtr = std::shared_ptr<If>;
 class If : public Node {
  public:
- std::string left, right, op, label;
- If(const std::string &l, const std::string &op_, 
-    const std::string &r, const std::string &lbl)
-   : left(l), right(r), op(op_), label(lbl) {}
- static std::shared_ptr<If> create(
-     const std::string &l, const std::string &op_,
-     const std::string &r, const std::string &lbl)
- {
-   return std::make_shared<If>(l, op_, r, lbl);
- }
- std::string to_string() const override {
-   // "IF left op right GOTO label"
-   return "IF " + left + " " + op + " " + right + " GOTO " + label;
- }
+  std::string left;
+  BinaryOp op;
+  std::string right;
+  std::string label;
+  If(const std::string &l, const BinaryOp &op_, const std::string &r,
+     const std::string &lbl)
+      : left(l), op(op_), right(r), label(lbl) {}
+  static IfPtr create(const std::string &l, const BinaryOp &op_,
+                      const std::string &r, const std::string &lbl) {
+    return std::make_shared<If>(l, op_, r, lbl);
+  }
+  std::string to_string() const override {
+    // "IF left op right GOTO label"
+    //  return "IF " + left + " " + op + " " + right + " GOTO " + label;
+    return "IF " + left + " " + op_to_string(op) + " " + right + " GOTO " + label;
+  }
 };
 
 class Param;
