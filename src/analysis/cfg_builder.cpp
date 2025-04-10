@@ -8,6 +8,12 @@ Module CFGBuilder::build(IR::Code code) {
 
   // 按函数分割IR代码
   for (const auto &inst : code) {
+    if (auto global = std::dynamic_pointer_cast<IR::Global>(inst)) {
+      mod.global_ir.push_back(inst);
+      continue;
+    }
+    // 这里处理的是上一个函数 就是说检测到新的IR::Function的时候
+    // 就把之前的所有压入current_func的东西放入build_single_func
     if (auto func = std::dynamic_pointer_cast<IR::Function>(inst)) {
       if (!current_func.empty()) {
         mod.functions.push_back(build_single_func(current_func));
@@ -30,11 +36,14 @@ FunctionPtr CFGBuilder::build_single_func(IR::Code code) {
   std::string func_name;
   bool ret_void = false;
 
+  bool has_ret = false;
+
   // 统一为一个 ret block 处理返回
   // 这里没有完成基本块划分，而是把所有函数体内的代码放在一个基本块中
+  // 一个函数两个基本块 一个主块 一个返回块 没有用到BasicBlock中的前驱和后继
   // 如果你想要更细粒度的基本块，可以参考实验文档修改这里的逻辑
 
-#warning Only one block is created for the whole function body now
+// #warning Only one block is created for the whole function body now
 
   BasicBlockPtr current_block = BasicBlock::create("entry");
   for (const auto &inst : code) {
@@ -50,10 +59,18 @@ FunctionPtr CFGBuilder::build_single_func(IR::Code code) {
         current_block->ir_code.push_back(IR::Assign::create("a0", ret->x));
         current_block->ir_code.push_back(IR::Goto::create(func_name + ".ret"));
       }
+      has_ret = true;
     } else {
       current_block->ir_code.push_back(inst);
     }
   }
+  
+  // 为了解决有些 void 函数没有 return; 语句
+  if (has_ret == false) {
+    current_block->ir_code.push_back(IR::Goto::create(func_name + ".ret"));
+    ret_void = true;
+  }
+
   blocks.push_back(current_block);
   label_to_block[current_block->label] = current_block;
 

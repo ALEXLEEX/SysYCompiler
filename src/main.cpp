@@ -102,8 +102,8 @@ int main(int argc, char **argv) {
       std::cout << "Control flow graph generated" << std::endl;
 
       if (args.output_ir) {
-        // output << mod.get_ir();
-        output << ir;
+        output << mod.get_ir();
+        // output << ir;
         return 0;
       }
 

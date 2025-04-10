@@ -64,11 +64,13 @@ class Function {
 
 class Module {
  public:
+  IR::Code global_ir;
   std::vector<FunctionPtr> functions;
-#warning Have not support global variables yet
+// #warning Have not support global variables yet
 
   Module() = default;
-  Module(std::vector<FunctionPtr> functions) : functions(functions) {}
+  // Module(std::vector<FunctionPtr> functions) : functions(functions) {}
+  Module(IR::Code global_ir, std::vector<FunctionPtr> functions) : global_ir(global_ir), functions(functions) {}
 
   IR::Code get_ir() const;
 };

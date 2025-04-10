@@ -18,6 +18,9 @@ int Function::alloc_reg(int size) {
 
 IR::Code Module::get_ir() const {
   IR::Code code;
+  // 把 global_ir 直接放入 code 里面
+  std::copy(global_ir.begin(), global_ir.end(), std::back_inserter(code));
+
   for (const auto &func : functions) {
     for (const auto &block : func->blocks) {
       std::copy(block->ir_code.begin(), block->ir_code.end(),
