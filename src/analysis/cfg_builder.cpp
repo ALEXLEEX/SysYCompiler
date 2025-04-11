@@ -41,6 +41,7 @@ FunctionPtr CFGBuilder::build_single_func(IR::Code code) {
   // 统一为一个 ret block 处理返回
   // 这里没有完成基本块划分，而是把所有函数体内的代码放在一个基本块中
   // 一个函数两个基本块 一个主块 一个返回块 没有用到BasicBlock中的前驱和后继
+  // 先跳过此处函数内部基本块划分 先完成目标代码生成
   // 如果你想要更细粒度的基本块，可以参考实验文档修改这里的逻辑
 
 // #warning Only one block is created for the whole function body now

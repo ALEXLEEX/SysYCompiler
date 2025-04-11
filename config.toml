@@ -1,6 +1,6 @@
 # verbose = false         # Enable verbose output
 # use_qemu = false        # set true to use rv32 toolchain to run test in lab0/lab4/bonus1/bonu2
-use_qemu = false
+use_qemu = true
 # use_accipit = false     # set true to use accipit ir to test lab3
 # parallel = true         # set true to enable parallel testing
 parallel = true
