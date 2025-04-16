@@ -6,6 +6,8 @@ Module CFGBuilder::build(IR::Code code) {
   Module mod;
   IR::Code current_func;
 
+#warning Global variable is not supported yet
+
   // 按函数分割IR代码
   for (const auto &inst : code) {
     if (auto global = std::dynamic_pointer_cast<IR::Global>(inst)) {
@@ -34,7 +36,7 @@ FunctionPtr CFGBuilder::build_single_func(IR::Code code) {
   std::vector<BasicBlockPtr> blocks;
   std::unordered_map<std::string, BasicBlockPtr> label_to_block;
   std::string func_name;
-  bool ret_void = false;
+  bool ret_void = true;  // 函数返回值是否为 void
 
   bool has_ret = false;
 
@@ -55,10 +57,10 @@ FunctionPtr CFGBuilder::build_single_func(IR::Code code) {
     } else if (auto ret = std::dynamic_pointer_cast<IR::Return>(inst)) {
       if (ret->x.empty()) {
         current_block->ir_code.push_back(IR::Goto::create(func_name + ".ret"));
-        ret_void = true;
       } else {
         current_block->ir_code.push_back(IR::Assign::create("a0", ret->x));
         current_block->ir_code.push_back(IR::Goto::create(func_name + ".ret"));
+        ret_void = false;
       }
       has_ret = true;
     } else {
