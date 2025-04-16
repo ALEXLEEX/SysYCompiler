@@ -348,7 +348,12 @@ ASM::Code InstSelector::selectDec(const IR::DecPtr &node) {
   int offset_base = get_temp_offset(node->x);
   // current_func->temp_var_offset_map[node->x] = offset_base;
   // code.push_back(ASM::ArithImm::create(ASM::Reg::t3, ASM::Reg::sp, offset_array, ASM::ArithImm::Op::Addi));
-  code.push_back(ASM::ArithImm::create(ASM::Reg::t0, ASM::Reg::sp, offset_array, ASM::ArithImm::Op::Addi));
+  if (node->size > 2047 || node->size < -2048) {
+    code.push_back(ASM::Lim::create(ASM::Reg::t0, offset_array));
+    code.push_back(ASM::Arith::create(ASM::Reg::t0, ASM::Reg::sp, ASM::Reg::t0, ASM::Arith::Op::Add));
+  } else {
+    code.push_back(ASM::ArithImm::create(ASM::Reg::t0, ASM::Reg::sp, offset_array, ASM::ArithImm::Op::Addi));
+  }
   // code.push_back(ASM::Store::create(ASM::Reg::sp, ASM::Reg::t3, offset_base));
   code.push_back(ASM::Store::create(ASM::Reg::sp, ASM::Reg::t0, offset_base));
   

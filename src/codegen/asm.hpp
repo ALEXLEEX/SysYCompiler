@@ -384,6 +384,13 @@ class Load : public Inst {
   }
 
   std::string to_string() const override {
+    // 检查是不是超过偏移量立即数限制 如果超过要额外处理
+    if (offset > 2047 || offset < -2048) {
+      // 用 li 指令加载偏移量到一个寄存器 然后 add 寄存器和偏移量
+      return "li t3, " + std::to_string(offset) + "\n" +
+              "add t3, t3, " + rs1.name + "\n" +
+              "lw " + rd.name + ", 0(t3)";
+    }
     return "lw " + rd.name + ", " + std::to_string(offset) + "(" + rs1.name +
            ")";
   }
@@ -416,6 +423,13 @@ class Store : public Inst {
   }
 
   std::string to_string() const override {
+    // 检查是不是超过偏移量立即数限制 如果超过要额外处理
+    if (offset > 2047 || offset < -2048) {
+      // 用 li 指令加载偏移量到一个寄存器 然后 add 寄存器和偏移量
+      return "li t3, " + std::to_string(offset) + "\n" +
+              "add t3, t3, " + rs1.name + "\n" +
+              "sw " + rs2.name + ", 0(t3)";
+    }
     return "sw " + rs2.name + ", " + std::to_string(offset) + "(" + rs1.name +
            ")";
   }

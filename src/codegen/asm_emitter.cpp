@@ -55,12 +55,30 @@ void ASMEmitter::emit(const FunctionPtr &func) {
   output << ".globl " << func->name << std::endl;
   output << func->name << ":" << std::endl;
   
-  // TODO: 这里也要考虑是不是超出addi的立即数限制
+  // TODO: 这里也要考虑是不是超出 addi sw lw 的立即数限制
+  if (stack_size > 2047) {
+    // t4 = stack_size
+    output << "    li t4, " << stack_size << std::endl;
+    // t5 = -stack_size
+    output << "    sub t5, zero, t4" << std::endl;
+    // sp = sp - stack_size
+    output << "    add sp, sp, t5" << std::endl;
+    // t6 = sp + stack_size
+    output << "    add t6, sp, t4" << std::endl;
+    output << "    sw ra, -4(t6)" << std::endl;
+    output << "    sw fp, -8(t6)" << std::endl;
+    output << "    add fp, t6, -4" << std::endl;
+  } else {
+    output << "    addi sp, sp, -" << stack_size << std::endl;
+    output << "    sw ra, " << (stack_size - 4) << "(sp)" << std::endl;
+    output << "    sw fp, " << (stack_size - 8) << "(sp)" << std::endl;
+    output << "    addi fp, sp, " << (stack_size - 4) << std::endl;
+  }
   
-  output << "    addi sp, sp, -" << stack_size << std::endl;
-  output << "    sw ra, " << (stack_size - 4) << "(sp)" << std::endl;
-  output << "    sw fp, " << (stack_size - 8) << "(sp)" << std::endl;
-  output << "    addi fp, sp, " << (stack_size - 4) << std::endl;
+  // output << "    addi sp, sp, -" << stack_size << std::endl;
+  // output << "    sw ra, " << (stack_size - 4) << "(sp)" << std::endl;
+  // output << "    sw fp, " << (stack_size - 8) << "(sp)" << std::endl;
+  // output << "    addi fp, sp, " << (stack_size - 4) << std::endl;
 
 // #warning Not implemented: ASMEmitter::emit prologue
 
@@ -71,9 +89,21 @@ void ASMEmitter::emit(const FunctionPtr &func) {
 
 // 添加 epilogue，处理 sp, ra, fp 等寄存器
   output << func->blocks.back()->label << ":" << std::endl;
-  output << "    lw ra, " << (stack_size - 4) << "(sp)" << std::endl;
-  output << "    lw fp, " << (stack_size - 8) << "(sp)" << std::endl;
-  output << "    addi sp, sp, " << stack_size << std::endl;
+  if (stack_size > 2047) {
+    // t4 = stack_size
+    output << "    li t4, " << stack_size << std::endl;
+    output << "    add t5, sp, t4" << std::endl;
+    output << "    lw ra, -4(t5)" << std::endl;
+    output << "    lw fp, -8(t5)" << std::endl;
+    output << "    add sp, sp, t4" << std::endl;
+  } else {
+    output << "    lw ra, " << (stack_size - 4) << "(sp)" << std::endl;
+    output << "    lw fp, " << (stack_size - 8) << "(sp)" << std::endl;
+    output << "    addi sp, sp, " << stack_size << std::endl;
+  }
+  // output << "    lw ra, " << (stack_size - 4) << "(sp)" << std::endl;
+  // output << "    lw fp, " << (stack_size - 8) << "(sp)" << std::endl;
+  // output << "    addi sp, sp, " << stack_size << std::endl;
   
   output << "    ret" << std::endl;
 // #warning Not implemented: ASMEmitter::emit epilogue
