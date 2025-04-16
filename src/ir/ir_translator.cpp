@@ -413,7 +413,11 @@ IR::Code IRTranslator::translateAssignStmt(AST::AssignStmtPtr node) {
 
       // 2) offsetTemp = offsetTemp + <subDimensionSize> * idxTemp
       // 子数组大小 * 4 * 偏移量 就是这个维度的偏移量
-      ir.push_back(IR::Binary::create(offsetTemp, idxTemp, BinaryOp::Mul, IR::imm_str(subArrSize * 4)));
+      // 用临时变量存 subArrSize * 4
+      auto subArrSizeTemp = new_temp();
+      ir.push_back(IR::LoadImm::create(subArrSizeTemp, subArrSize * 4));
+      ir.push_back(IR::Binary::create(offsetTemp, idxTemp, BinaryOp::Mul, subArrSizeTemp));
+      // ir.push_back(IR::Binary::create(offsetTemp, idxTemp, BinaryOp::Mul, IR::imm_str(subArrSize * 4)));
       ir.push_back(IR::Binary::create(baseName, baseName, BinaryOp::Add, offsetTemp));
     }
     // 2.2) 现在 offsetTemp 里是字节偏移 且已经加进去了
@@ -504,7 +508,11 @@ IR::Code IRTranslator::translateLVal(AST::LValPtr node,
 
       // 2) offsetTemp = offsetTemp + <subDimensionSize> * idxTemp
       // 子数组大小 * 4 * 偏移量 就是这个维度的偏移量
-      ir.push_back(IR::Binary::create(offsetTemp, idxTemp, BinaryOp::Mul, IR::imm_str(subArrSize * 4)));
+      // 用临时变量存 subArrSize * 4 
+      auto subArrSizeTemp = new_temp();
+      ir.push_back(IR::LoadImm::create(subArrSizeTemp, subArrSize * 4));
+      ir.push_back(IR::Binary::create(offsetTemp, idxTemp, BinaryOp::Mul, subArrSizeTemp));
+      // ir.push_back(IR::Binary::create(offsetTemp, idxTemp, BinaryOp::Mul, IR::imm_str(subArrSize * 4)));
       ir.push_back(IR::Binary::create(baseName, baseName, BinaryOp::Add, offsetTemp));
     }
     // 2.2) 现在 offsetTemp 里是字节偏移 且已经加进去了

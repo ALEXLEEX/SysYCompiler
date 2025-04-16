@@ -35,13 +35,17 @@ class Function {
   std::vector<BasicBlockPtr> blocks;
 
   /// @brief stack size for temporary variables, in bytes
-  int temp_stack_size = 0;
+  // 给他预留 30 个字节 作为传参数时候的空间
+  int temp_stack_size = 120;
 
   /// @brief stack size for saved registers, in bytes
   int reg_stack_size = 0;
 
   /// @brief map virtual registers to physical registers
   ASM::RegMap reg_map;
+
+  /// @brief map virtual registers to stack offsets
+  std::unordered_map<std::string, int> temp_var_offset_map;
 
   Function(std::string name, std::vector<BasicBlockPtr> blocks = {})
       : name(name), blocks(blocks) {}
@@ -64,6 +68,7 @@ class Function {
 
 class Module {
  public:
+  // 全局变量要单独处理
   IR::Code global_ir;
   std::vector<FunctionPtr> functions;
 // #warning Have not support global variables yet

@@ -17,6 +17,9 @@ class Reg {
 
   std::string name;
 
+  // 默认构造
+  Reg() : name(""), physical(false) {}
+
   Reg(std::string name) : name(name), physical(false) {
     static const std::set<std::string> physical_registers = {
         "zero", "ra", "sp", "gp", "tp",  "t0",  "t1", "t2", "fp", "s1", "a0",
@@ -99,18 +102,18 @@ class Arith : public Inst {
     Sub,
     Mul,
     Div,
-    Rem,
-    // 逻辑运算
-    And,
-    Or,
-    Xor,
-    // 位运算
-    Sll,
-    Srl,
-    Sra,
-    // 比较运算
-    Slt,
-    Sgt,
+    Mod,  // %
+    Not,  // ! 一元
+    // 逻辑二元
+    LAnd, // &&
+    LOr,  // ||
+    // 比较
+    EQ,   // ==
+    NEQ,  // !=
+    LT,   // <
+    LE,   // <=
+    GT,   // >
+    GE,   // >=
 // #warning Maybe you need to add more operations
   };
 
@@ -137,32 +140,8 @@ class Arith : public Inst {
       case Op::Div:
         op_str = "div";
         break;
-      case Op::Rem:
+      case Op::Mod:
         op_str = "rem";
-        break;
-      case Op::And:
-        op_str = "and";
-        break;
-      case Op::Or:
-        op_str = "or";
-        break;
-      case Op::Xor:
-        op_str = "xor";
-        break;
-      case Op::Sll:
-        op_str = "sll";
-        break;
-      case Op::Srl:
-        op_str = "srl";
-        break;
-      case Op::Sra:
-        op_str = "sra";
-        break;
-      case Op::Slt:
-        op_str = "slt";
-        break;
-      case Op::Sgt:
-        op_str = "sgt";
         break;
       default:
         op_str = "unknown_op";  // 未知操作
@@ -182,6 +161,31 @@ class Arith : public Inst {
       rs2 = reg_map.at(rs2);
     }
   }
+  void replace_defs(const RegMap &reg_map) override {
+    if (reg_map.find(rd) != reg_map.end()) {
+      rd = reg_map.at(rd);
+    }
+  }
+};
+
+// 加载立即数
+class Lim;
+using LimPtr = std::shared_ptr<Lim>;
+class Lim : public Inst {
+ public:
+  Reg rd;
+  int imm;
+
+  Lim(Reg rd, int imm) : rd(rd), imm(imm) {}
+  static LimPtr create(Reg rd, int imm) { return std::make_shared<Lim>(rd, imm); }
+
+  std::string to_string() const override {
+    return "li " + rd.name + ", " + std::to_string(imm);
+  }
+
+  std::set<Reg> get_uses() const override { return {}; }
+  std::set<Reg> get_defs() const override { return {rd}; }
+  void replace_uses(const RegMap &reg_map) override {}
   void replace_defs(const RegMap &reg_map) override {
     if (reg_map.find(rd) != reg_map.end()) {
       rd = reg_map.at(rd);
@@ -436,12 +440,24 @@ class Branch : public Inst {
 // #warning Have not implemented Branch yet
  public:
   enum class Op {
-    Beq,
-    Bne,
-    Blt,
-    Bgt,
-    Ble,
-    Bge,
+    // 算术
+    Add,  // + 二元/一元
+    Sub,  // - 二元/一元
+    Mul,  // *
+    Div,  // /
+    Mod,  // %
+    // 逻辑一元
+    Not,  // ! 一元
+    // 逻辑二元
+    LAnd, // &&
+    LOr,  // ||
+    // 比较
+    EQ,   // ==
+    NEQ,  // !=
+    LT,   // <
+    LE,   // <=
+    GT,   // >
+    GE,   // >=
   };
   Reg rs1, rs2;
   std::string label;
@@ -454,22 +470,22 @@ class Branch : public Inst {
   std::string to_string() const override {
     std::string op_str;
     switch (op) {
-      case Op::Beq:
+      case Op::EQ:
         op_str = "beq";
         break;
-      case Op::Bne:
+      case Op::NEQ:
         op_str = "bne";
         break;
-      case Op::Blt:
+      case Op::LT:
         op_str = "blt";
         break;
-      case Op::Bgt:
+      case Op::GT:
         op_str = "bgt";
         break;
-      case Op::Ble:
+      case Op::LE:
         op_str = "ble";
         break;
-      case Op::Bge:
+      case Op::GE:
         op_str = "bge";
         break;
       default:
