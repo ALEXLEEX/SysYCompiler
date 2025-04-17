@@ -55,7 +55,7 @@ void ASMEmitter::emit(const FunctionPtr &func) {
   output << ".globl " << func->name << std::endl;
   output << func->name << ":" << std::endl;
   
-  // TODO: 这里也要考虑是不是超出 addi sw lw 的立即数限制
+  // T这里也要考虑是不是超出 addi sw lw 的立即数限制
   if (stack_size > 2047) {
     // t4 = stack_size
     output << "    li t4, " << stack_size << std::endl;

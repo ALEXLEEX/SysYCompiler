@@ -6,7 +6,7 @@ Module CFGBuilder::build(IR::Code code) {
   Module mod;
   IR::Code current_func;
 
-#warning Global variable is not supported yet
+// #warning Global variable is not supported yet
 
   // 按函数分割IR代码
   for (const auto &inst : code) {
