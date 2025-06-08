@@ -12,11 +12,9 @@
 #include "ir/ir_translator.hpp"
 #include "semantic/type_checker.hpp"
 
-extern int yydebug;  // 0: disable debug mode, 1: enable debug mode
-extern int yyparse();
-extern int yylex();
-extern int yylineno;  // line number
-extern FILE *yyin;
+#include "rd/lexer.hpp"
+#include "rd/parser.hpp"
+int yylineno;  // line number
 AST::NodePtr root;
 
 class Argument {
@@ -61,19 +59,14 @@ int main(int argc, char **argv) {
 
     Argument args(argc, argv);
 
-    yyin = fopen(args.input_file.c_str(), "r");
-    if (!yyin) {
+    std::ifstream fin(args.input_file);
+    if (!fin.is_open()) {
       throw std::runtime_error("Cannot open file: " + args.input_file);
     }
 
-    // 输出 flex/bison 的调试信息
-    // yydebug = 1;
-
-    if (int parse_status = yyparse()) {
-      throw std::runtime_error("Parse failed with status " +
-                               std::to_string(parse_status));
-    }
-    fclose(yyin);
+    Lexer lexer(fin);
+    Parser parser(lexer);
+    root = parser.parse();
 
     if (root) {
       std::ofstream output_file;
