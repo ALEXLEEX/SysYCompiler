@@ -53,3 +53,7 @@ compiler
 
 # Debug
 debug/
+
+# vscode
+.vscode
+build

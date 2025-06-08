@@ -3,3 +3,13 @@
 使用方法：进入根目录，运行make，在根目录下生成可执行文件compiler。
 `./compiler path_to_source_file/source_file.sy path_to_target_file`
 会将对应的sy源文件编译成汇编代码并在目标文件夹下创建.S文件
+
+### Cmake version
+
+run:
+
+```bash
+sh cmake_and_build.sh
+```
+
+You can find the compiler executable file in build.
