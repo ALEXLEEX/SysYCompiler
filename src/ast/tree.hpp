@@ -60,7 +60,10 @@ class LVal : public Node {
   // 所以这里我们只能给出LVal到底有多少维 但是无法给出每一维的大小
   LVal(std::string ident, NodePtr dim) : ident(ident) { dims.push_back(dim); }
   // 从开头添加维度
-  void add_dim(NodePtr dim) { dims.insert(dims.begin(), dim); }
+  // void add_dim(NodePtr dim) { dims.insert(dims.begin(), dim); }
+  void add_dim(NodePtr dim) { 
+    dims.push_back(dim); 
+  }
   std::string to_string() override { 
     // 可选地在打印中提示下标维度数
     // 比如 "LVal <ident: arr> (dims=2)"
@@ -248,7 +251,8 @@ class VarDef : public Node {
   VarDef(const char *ident, int dim, InitValPtr initVal) : ident(ident), initVal(initVal) {
     dims.push_back(dim);
   }
-  void add_dim(int dim) { dims.insert(dims.begin(), dim); }
+  // void add_dim(int dim) { dims.insert(dims.begin(), dim); }
+  void add_dim(int dim) { dims.push_back(dim); }
   void add_initVal(InitValPtr initVal) { this->initVal = initVal; }
   std::string to_string() override {
     // 在打印里可以显示 ident dims大小 以及是否有初值
