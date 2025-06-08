@@ -207,92 +207,41 @@ TypePtr TypeChecker::checkVarDef(AST::VarDefPtr node, BasicType var_type) {
   return nullptr;
 }
 
-void TypeChecker::doCheckArrayInit(const std::vector<AST::InitValPtr> & sublist, const std::shared_ptr<ArrayType> & arrType, int lineno) {
-    // total = product of arrType->dims 待初始化的元素总数
-    int totalCount = 1;
-    for (auto d : arrType->dims) totalCount *= d;
-    
-    int filledCount = 0; 
-    // iterate over sublist { initVal, InitVal, ... }
-    for (auto child : sublist) {
-      auto initv = std::dynamic_pointer_cast<AST::InitVal>(child);
-      if (initv->kind == AST::InitVal::Kind::EXP) {
-        // { InitVal, Exp, InitVal, ... }
-        //             ^ 到这里了
-        // scalar => fill 1 element
-        TypePtr t = check(initv->expr);
-        // must match arrType->element_type if it's 1-d array,
-        // or if arrType->dims.size>1 => means you are filling sub array?
-        // here you see, to do real c-like we need a more advanced approach
-        // We'll do a simplified version: if arrType->dims.size()==1 => must be int
-        // else error or do partial approach
-        if (! is_int(t)) {
-          std::cerr << "Error: array init scalar not int at line " << lineno << std::endl;
-          exit(1);
-        }
-        filledCount++;
-        if (filledCount > totalCount) {
-          std::cerr << "Error: too many init at line " << lineno << std::endl;
-          exit(1);
-        }
-      } else {
-        //  { InitVal, { ... } , ... } => we can interpret as sub array
-        // dimension - 1
-        if (arrType->dims.size() < 2) {
-          // means we can't go deeper
-          std::cerr << "Error: nested { } but no deeper array dimension left" << std::endl;
-          exit(1);
-        }
-        // 首先应该用已填充元素数去整除 dims 的维度 找到最大的可初始化数组大小
-        // 例如: int a[2][3][4] = { { {1,2,3,4}, {5,6,7,8} } }
-        // 假如已经处理完 {1,2,3,4} 下一个到 {5,6,7,8} 那么 filledCount = 4
-        // 现在用 filledCount = 4 去整除 dims[2] = 4 
-        // filledCount % dims[2] == 0 but filledCount % (dims[1] * dims[2]) != 0
-        // 所以我们要新创建一个数组类型 subArr[4] 去处理 {5,6,7,8}
-        int i = 0;
-        int temp = 1;
-        
-        for (i = arrType->dims.size()-1; i >= 1; i--) {
-          temp *= arrType->dims[i];
-          // std::cerr << "temp = " << temp << " i = " << i << std::endl;
-          // std::cerr << "filledCount = " << filledCount << std::endl;
-          if (filledCount % temp != 0) {
-            break;
-          }
-        }
-        i++;
-
-        // build a sub array type
-        auto subArr = std::make_shared<ArrayType>();
-        subArr->element_type = arrType->element_type;
-        
-        // subArr->dims.assign(arrType->dims.begin()+1, arrType->dims.end());
-        for (std::vector<int>::size_type j = i; j < arrType->dims.size(); j++) {
-          subArr->dims.push_back(arrType->dims[j]);
-        }
-
-        int subTotal = 1;
-        for (auto d : subArr->dims) subTotal *= d;
-
-        // check sublist recursively
-        // fill up to subTotal elements
-        // we can do something like:
-        auto & subSubs = initv->subInitVals;
-        doCheckArrayInit(subSubs, subArr, lineno);
-
-        // that function might fill subTotal if subSubs not enough => implicit 0
-        filledCount += subTotal; 
-        if (filledCount > totalCount) {
-          std::cerr << "Error: too many init in bigger dimension, line " << lineno << std::endl;
-          exit(1);
-        }
-      }
+// Recursively count number of scalar initializers inside an InitVal and check
+// that every expression is of integer type.
+int TypeChecker::countAndCheck(const AST::InitValPtr &node) {
+  if (node->kind == AST::InitVal::Kind::EXP) {
+    TypePtr t = check(node->expr);
+    if (!is_int(t)) {
+      std::cerr << "Error: array init scalar not int at line " << node->lineno
+                << std::endl;
+      exit(1);
     }
-    // if filledCount < totalCount => implicit fill 0
-    // if (filledCount < totalCount) {
-    //   std::cerr << "Warning: implicit 0 fill at line " << lineno << std::endl;
-    // }
-    return;
+    return 1;
+  }
+
+  int cnt = 0;
+  for (auto &sub : node->subInitVals) {
+    cnt += countAndCheck(sub);
+  }
+  return cnt;
+}
+
+void TypeChecker::doCheckArrayInit(const std::vector<AST::InitValPtr> &sublist,
+                                   const std::shared_ptr<ArrayType> &arrType,
+                                   int lineno) {
+  int provided = 0;
+  for (auto &child : sublist) {
+    provided += countAndCheck(child);
+  }
+
+  int total = 1;
+  for (auto d : arrType->dims) total *= d;
+
+  if (provided > total) {
+    std::cerr << "Error: too many init at line " << lineno << std::endl;
+    exit(1);
+  }
 }
 
 TypePtr TypeChecker::checkInitVal(AST::InitValPtr node, const TypePtr &target_type) {

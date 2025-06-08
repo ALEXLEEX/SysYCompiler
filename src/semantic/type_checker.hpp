@@ -41,6 +41,7 @@ class TypeChecker {
   TypePtr checkExpStmt(AST::ExpStmtPtr node);
   TypePtr checkPrimaryExp(AST::PrimaryExpPtr node);
   TypePtr checkInitVal(AST::InitValPtr node, const TypePtr& target_type);
+  int countAndCheck(const AST::InitValPtr &node);
   void doCheckArrayInit(const std::vector<AST::InitValPtr> & sublist, const std::shared_ptr<ArrayType> & arrType,int lineno);
   //
   TypePtr checkVarDef(AST::VarDefPtr node, BasicType var_type);

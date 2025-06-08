@@ -310,7 +310,9 @@ class Param : public Node {
   }
   // 这里我们直接不创建 IntConst 节点了 直接传入 INTCONST 的属性值 int_val
   // 太招笑了家人们 根本不是IntConst 而是ArrayDims
-  void add_dim(int dim) { dims.push_back(dim); }
+  // To keep the dimension order consistent with VarDef (innermost first),
+  // insert new dimension at the beginning
+  void add_dim(int dim) { dims.insert(dims.begin(), dim); }
   // 添加维度数组
   void add_dims(const std::vector<int> &dims) {
     this->dims.insert(this->dims.end(), dims.begin(), dims.end());
