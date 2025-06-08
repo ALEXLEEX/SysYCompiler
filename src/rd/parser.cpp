@@ -258,6 +258,7 @@ BinaryOp Parser::toBinaryOp(TokenType t) {
     case TokenType::MUL: return BinaryOp::Mul;
     case TokenType::DIV: return BinaryOp::Div;
     case TokenType::MOD: return BinaryOp::Mod;
+    case TokenType::NOT: return BinaryOp::Not;
     default: return BinaryOp::Add;
   }
 }
