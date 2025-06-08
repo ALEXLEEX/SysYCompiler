@@ -184,7 +184,8 @@ class InitVal : public Node {
   InitVal() : kind(Kind::BRACE), expr(nullptr) {}
 
   // 如果在解析时，需要反复添加 subInitVal, 就加一个 add_sub(InitValPtr) 但是要添加到 subInitVals 头部
-  void add_sub(InitValPtr val) { subInitVals.insert(subInitVals.begin(), val); }
+  // void add_sub(InitValPtr val) { subInitVals.insert(subInitVals.begin(), val); }
+  void add_sub(InitValPtr val) { subInitVals.push_back(val); }
 
   std::string to_string() override {
     if (kind == Kind::EXP) {
