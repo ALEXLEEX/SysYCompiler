@@ -1,6 +1,11 @@
 #include "reg_allocator.hpp"
 
+#include <algorithm>
+#include <map>
 #include <set>
+#include <vector>
+
+#include "common.hpp"
 
 void RegAllocator::allocate(Module &mod) {
   for (auto &func : mod.functions) {
@@ -8,53 +13,99 @@ void RegAllocator::allocate(Module &mod) {
   }
 }
 
+namespace {
+
+using Graph = std::map<ASM::Reg, std::set<ASM::Reg>>;
+
+std::vector<ASM::InstPtr> collect_insts(const FunctionPtr &func) {
+  std::vector<ASM::InstPtr> insts;
+  for (auto &block : func->blocks) {
+    for (auto &inst : block->asm_code) {
+      insts.push_back(inst);
+    }
+  }
+  return insts;
+}
+
+std::set<ASM::Reg> difference(const std::set<ASM::Reg> &a,
+                              const std::set<ASM::Reg> &b) {
+  std::set<ASM::Reg> res;
+  std::set_difference(a.begin(), a.end(), b.begin(), b.end(),
+                      std::inserter(res, res.begin()));
+  return res;
+}
+
+}  // namespace
+
 void RegAllocator::allocate(FunctionPtr &func) {
-  func->alloc_reg(8);   // allocate space for return address and previous fp
-  ASM::RegMap reg_map;  // virtual register to physical register
-  std::set<ASM::Reg> available_regs = {
-      ASM::Reg::t0,  ASM::Reg::t1, ASM::Reg::t2, ASM::Reg::t3, ASM::Reg::t4,
-      ASM::Reg::t5,  ASM::Reg::t6, ASM::Reg::s2, ASM::Reg::s3, ASM::Reg::s4,
-      ASM::Reg::s5,  ASM::Reg::s6, ASM::Reg::s7, ASM::Reg::s8, ASM::Reg::s9,
-      ASM::Reg::s10, ASM::Reg::s11};
-  // 在这里实现寄存器分配算法，将结果保存在 reg_map 中
-  // tips: 对于朴素的仅用到三个寄存器的算法，可能用不到 reg_map
+  func->alloc_reg(8);  // space for ra and fp
 
-  // 我的思路 采用最简单的寄存器分配算法
-  // 只用 t0 t1 t2 分别对应 rd rs1 rs2
-  // 对每一个临时变量都要存在栈上
-  // 需要建立一个临时变量和他偏移量的对应表
-  // 逐条检查func->blocks->asm_code
-  // 对于rs1 rs2寄存器 从对应表获取偏移量 把load指令插入这条asm_code的前面 先把值load进t1 t2
-  // 对于rd寄存器 就新分配一个位置 获取他的偏移量 然后把store指令插入这条asm_code的后面
+  auto insts = collect_insts(func);
+  int n = insts.size();
+  std::vector<std::set<ASM::Reg>> live_in(n), live_out(n);
 
+  bool changed = true;
+  while (changed) {
+    changed = false;
+    for (int i = n - 1; i >= 0; --i) {
+      std::set<ASM::Reg> uses = insts[i]->get_uses();
+      std::set<ASM::Reg> defs = insts[i]->get_defs();
+      std::set<ASM::Reg> out;
+      if (i + 1 < n) out = live_in[i + 1];
+      std::set<ASM::Reg> in = uses;
+      auto diff = difference(out, defs);
+      in.insert(diff.begin(), diff.end());
+      if (in != live_in[i] || out != live_out[i]) {
+        live_in[i] = in;
+        live_out[i] = out;
+        changed = true;
+      }
+    }
+  }
 
-  // for (auto &block : func->blocks) {
-  //   for (auto &inst : block->asm_code) {
-  //     auto uses = inst->get_uses();
-  //     auto defs = inst->get_defs();
-  //     auto it = uses.begin();
-  //     for (int i = 0; i < uses.size(); i++) {
-  //       if (i == 0 && it->is_phys() == false) {
-  //         // reg_map[it->name] = ASM::Reg::t1;
-  //         reg_map[*it] = ASM::Reg::t1;
-  //       } else if (i == 1 && it->is_phys() == false) {
-  //         // reg_map[it->name] = ASM::Reg::t2;
-  //         reg_map[*it] = ASM::Reg::t2;
-  //       }
-  //       std::cerr << "reg_map[" << it->name << "] = tx" << std::endl;
-  //       it++;
-  //     }
-  //     it = defs.begin();
-  //     for (int i = 0; i < defs.size(); i++) {
-  //       if (i == 0 && it->is_phys() == false) {
-  //         // reg_map[it->name] = ASM::Reg::t0;
-  //         std::cerr << "reg_map[" << it->name << "] = t0" << std::endl;
-  //         reg_map[*it] = ASM::Reg::t0;
-  //       }
-  //       it++;
-  //     }
-  //   }
-  // }
-// #warning Not implemented: RegAllocator::allocate
+  Graph graph;
+  for (int i = 0; i < n; ++i) {
+    for (auto &d : insts[i]->get_defs()) {
+      if (d.is_phys()) continue;
+      graph[d];
+      for (auto &l : live_out[i]) {
+        if (l.is_phys() || l == d) continue;
+        graph[d].insert(l);
+        graph[l].insert(d);
+      }
+    }
+  }
+
+  std::vector<ASM::Reg> phys = {ASM::Reg::t0,  ASM::Reg::t1,  ASM::Reg::t2,
+                                ASM::Reg::t3,  ASM::Reg::t4,  ASM::Reg::t5,
+                                ASM::Reg::t6,  ASM::Reg::s1,  ASM::Reg::s2,
+                                ASM::Reg::s3,  ASM::Reg::s4,  ASM::Reg::s5,
+                                ASM::Reg::s6,  ASM::Reg::s7,  ASM::Reg::s8,
+                                ASM::Reg::s9,  ASM::Reg::s10, ASM::Reg::s11};
+
+  std::vector<ASM::Reg> nodes;
+  for (auto &p : graph) nodes.push_back(p.first);
+  std::sort(nodes.begin(), nodes.end(), [&](const ASM::Reg &a, const ASM::Reg &b) {
+    return graph[a].size() > graph[b].size();
+  });
+
+  ASM::RegMap reg_map;
+  for (auto &v : nodes) {
+    std::set<ASM::Reg> forbid;
+    for (auto &nbor : graph[v]) {
+      if (reg_map.count(nbor)) forbid.insert(reg_map[nbor]);
+    }
+    for (auto &r : phys) {
+      if (!forbid.count(r)) {
+        reg_map[v] = r;
+        break;
+      }
+    }
+    if (!reg_map.count(v) && !phys.empty()) {
+      reg_map[v] = phys[0];  // fallback
+    }
+  }
+
   func->reg_map = reg_map;
 }
+

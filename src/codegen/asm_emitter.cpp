@@ -116,7 +116,7 @@ void ASMEmitter::emit(const BasicBlockPtr &block) {
 }
 
 void ASMEmitter::emit(const ASM::InstPtr &inst) {
-  // inst->replace_all(reg_map);
+  inst->replace_all(reg_map);
   if (type_of<ASM::Label>(inst)) {
     output << inst->to_string() << std::endl;
   } else {
