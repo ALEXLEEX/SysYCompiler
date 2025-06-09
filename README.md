@@ -10,8 +10,6 @@ make
 ./compiler path_to_source_file/source_file.sy path_to_target_file
 ```
 
-``
-
 会将对应的sy源文件编译成汇编代码并在目标文件夹下创建.S文件
 
 ### Cmake version
